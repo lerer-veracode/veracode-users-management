@@ -51,7 +51,10 @@ let now = START;
 let sleeps: number[] = [];
 let audit: AuditLog;
 
-const setup = async (fetchFn: ReturnType<typeof veracode> = veracode()) => {
+const setup = async (
+  fetchFn: ReturnType<typeof veracode> = veracode(),
+  hiddenPermissions?: string[],
+) => {
   let session = await createVault("yaakov", PASSWORD, START, CHEAP);
   session = await addUser(session, "dana", "dana long password", START, CHEAP);
   session = saveData(session, {
@@ -72,6 +75,7 @@ const setup = async (fetchFn: ReturnType<typeof veracode> = veracode()) => {
     sleep: async (ms) => {
       sleeps.push(ms);
     },
+    hiddenPermissions,
   });
   return { app, sweep, fetchFn };
 };
@@ -119,6 +123,79 @@ describe("open routes", () => {
       { id: "fed", label: "US Federal" },
     ]);
     expect(isRegion("apac")).toBe(false);
+  });
+});
+
+describe("hidden permissions (docs/PLAN_ROLES.md, phase 1)", () => {
+  const perm = (permission_name: string, permission_description: string) => ({
+    permission_name,
+    permission_description,
+  });
+  const withPermissions = () =>
+    vi.fn<Fetch>(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/oauth2/token"))
+        return json(200, { access_token: "tok", expires_in: 3600 });
+      if (url.includes("/v2/users?")) {
+        return json(200, {
+          _embedded: { users: [{ user_id: "u1", user_name: "jdoe", email_address: "j@x.com" }] },
+          page: { total_pages: 1 },
+        });
+      }
+      if (url.endsWith("/v2/users/u1")) {
+        return json(200, {
+          user_id: "u1",
+          user_name: "jdoe",
+          email_address: "j@x.com",
+          roles: [{ role_name: "extseclead", role_description: "Security Lead" }],
+          permissions: [perm("apiUser", "API user"), perm("manageVsaRules", "Manage VSA rules")],
+        });
+      }
+      if (url.includes("/v2/roles")) {
+        return json(200, {
+          _embedded: {
+            roles: [
+              {
+                role_name: "extseclead",
+                role_description: "Security Lead",
+                permissions: [
+                  perm("manageVendorContactRequests", "Manage Vendor Contact Requests"),
+                  perm("canvsaw", "Canvsaw things"),
+                  perm("viewReports", "View reports"),
+                ],
+              },
+            ],
+          },
+          page: { total_pages: 1 },
+        });
+      }
+      return json(404, {});
+    });
+  const names = (list: { permission_name: string }[]) => list.map((p) => p.permission_name);
+
+  it("leaves hidden permissions out of the roles and users sent", async () => {
+    const { app } = await setup(withPermissions(), ["VSA", "Manage Vendor Contact Requests"]);
+    const { cookie } = await signIn(app);
+    const { roles } = (await (await get(app, "/api/roles", cookie)).json()) as {
+      roles: { permissions: { permission_name: string }[] }[];
+    };
+    // "vsa" inside the word "canvsaw" isn't the word VSA.
+    expect(names(roles[0]?.permissions ?? [])).toEqual(["canvsaw", "viewReports"]);
+    const { users } = (await (await get(app, "/api/users", cookie)).json()) as {
+      users: { user_type: string; permissions: { permission_name: string }[] }[];
+    };
+    expect(names(users[0]?.permissions ?? [])).toEqual(["apiUser"]);
+    // The backend still sees every permission: the apiUser one marks an API account.
+    expect(users[0]?.user_type).toBe("API");
+  });
+
+  it("hides nothing without a list", async () => {
+    const { app } = await setup(withPermissions());
+    const { cookie } = await signIn(app);
+    const { roles } = (await (await get(app, "/api/roles", cookie)).json()) as {
+      roles: { permissions: { permission_name: string }[] }[];
+    };
+    expect(roles[0]?.permissions).toHaveLength(3);
   });
 });
 

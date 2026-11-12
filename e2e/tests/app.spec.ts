@@ -55,6 +55,8 @@ test("users page shows the organization's users with roles and permissions", asy
   const dialog = page.getByRole("dialog", { name: "alice@example.com" });
   await expect(dialog.getByText("Security Lead")).toBeVisible();
   await expect(dialog.getByText("Manage applications")).toBeVisible();
+  // config/hidden-permissions.txt hides it.
+  await expect(dialog.getByText("Manage VSA rules")).toHaveCount(0);
   await expect(dialog.getByText("Blue Team")).toBeVisible();
   await page.mouse.click(5, 5);
   await expect(dialog).toBeHidden();

@@ -59,7 +59,11 @@ const ROLES = [
   {
     role_name: "extseclead",
     role_description: "Security Lead",
-    permissions: [{ permission_name: "manageApps", permission_description: "Manage applications" }],
+    permissions: [
+      { permission_name: "manageApps", permission_description: "Manage applications" },
+      // Hidden by config/hidden-permissions.txt (docs/PLAN_ROLES.md, phase 1).
+      { permission_name: "manageVsaRules", permission_description: "Manage VSA rules" },
+    ],
   },
   { role_name: "extreviewer", role_description: "Reviewer" },
   { role_name: "extsubmitter", role_description: "Submitter" },

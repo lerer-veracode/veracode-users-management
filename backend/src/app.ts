@@ -33,6 +33,7 @@ import {
   roleKind,
   type Org,
 } from "./veracode/rules.js";
+import { withoutHidden } from "./veracode/hidden.js";
 import { cleanUp, type CleanupReport } from "./vault/cleanup.js";
 import { readVault, writeVault } from "./vault/file.js";
 import { MAX_AGE_DAYS, isPast } from "./vault/retention.js";
@@ -52,6 +53,8 @@ export type AppDeps = {
   now: () => Date;
   sleep: (ms: number) => Promise<void>;
   audit: AuditLog;
+  // Permissions never sent to the dashboard (config/hidden-permissions.txt, docs/PLAN_ROLES.md).
+  hiddenPermissions?: string[];
 };
 
 const COOKIE = "um_session";
@@ -378,7 +381,11 @@ export const createApp = (deps: AppDeps) => {
     };
 
   // Each user says whether this app may change them, and why not; each role whether it may be given.
-  const withLock = (u: VeracodeUser) => ({ ...u, locked: protectedReason(u) });
+  const hidden = deps.hiddenPermissions ?? [];
+  const withLock = (u: VeracodeUser) => ({
+    ...withoutHidden(hidden, u),
+    locked: protectedReason(u),
+  });
 
   // The users load in two steps (docs/PLAN_CACHE.md, phase 6). The first view is the bulk list,
   // sent as soon as it's read; the role reads that add last login, type and MFA carry on, and
@@ -389,7 +396,7 @@ export const createApp = (deps: AppDeps) => {
   const usersLoading = new Map<string, UsersLoad>();
   const PENDING = "This user's details are still being read from Veracode. Try again in a moment.";
   const firstView = (u: VeracodeUser) => ({
-    ...u,
+    ...withoutHidden(hidden, u),
     locked: u.roles.some(isAdministratorRole) ? protectedReason(u) : PENDING,
   });
 
@@ -467,7 +474,7 @@ export const createApp = (deps: AppDeps) => {
         const roles = await rolesOf(conn, fresh);
         const ok = new Set(assignable(roles).map((r) => r.role_name));
         return roles.map((r) => ({
-          ...r,
+          ...withoutHidden(hidden, r),
           assignable: ok.has(r.role_name),
           kind: roleKind(r),
         }));

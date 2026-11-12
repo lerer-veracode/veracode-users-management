@@ -415,3 +415,51 @@ describe("npm run connect -- inspect", () => {
     expect(output()).toContain("No connections yet.");
   });
 });
+
+describe("npm run connect -- permissions", () => {
+  it("lists each permission of the organization's roles once, sorted, read only", async () => {
+    await firstRun();
+    lines = [];
+    const perm = (permission_name: string, permission_description: string) => ({
+      permission_name,
+      permission_description,
+    });
+    const fetchFn = vi.fn<Fetch>(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/oauth2/token"))
+        return json(200, { access_token: "tok", expires_in: 3600 });
+      if (url.includes("/v2/roles")) {
+        return json(200, {
+          _embedded: {
+            roles: [
+              {
+                role_name: "a",
+                permissions: [perm("viewReports", "View reports"), perm("vsa", "Manage VSA")],
+              },
+              { role_name: "b", permissions: [perm("viewReports", "View reports")] },
+            ],
+          },
+          page: { total_pages: 1 },
+        });
+      }
+      return json(404, {});
+    });
+    expect(await run(["permissions"], signIn, fetchFn)).toBe(0);
+    expect(lines).toEqual([
+      "Signed in as yaakov.",
+      "2 permissions in acme (EU), read only:",
+      "",
+      "Manage VSA  (vsa)",
+      "View reports  (viewReports)",
+    ]);
+    expect(fetchFn.mock.calls.filter(([u]) => !String(u).endsWith("/oauth2/token"))).toHaveLength(
+      1,
+    );
+    expect(await audit.latest(5)).toContainEqual(
+      expect.objectContaining({ action: "role.list", reason: "permissions" }),
+    );
+    lines = [];
+    expect(await run(["permissions", "nope"], signIn, fetchFn)).toBe(1);
+    expect(output()).toContain("No connection named nope.");
+  });
+});

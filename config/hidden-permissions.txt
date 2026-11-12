@@ -1,0 +1,10 @@
+# Permissions the app doesn't show (docs/PLAN_ROLES.md).
+# One word or phrase per line. A permission is hidden when its name or description
+# contains a line as a whole word or phrase, ignoring case.
+# npm run connect -- permissions lists every permission the organization's roles carry.
+# Restart the backend (npm run dev) after a change.
+
+DynamicMP
+VSA
+Manage Vendor Contact Requests
+Manage rules in SourceClear workspace
