@@ -16,7 +16,7 @@
     "test": "npm run test --workspaces --if-present",
     "e2e": "npm run e2e -w e2e",
     "check": "npm run format && npm run lint && npm run typecheck && npm run test && npm run e2e",
-    "prepare": "simple-git-hooks",
+    "prepare": "node scripts/install-hooks.mjs",
     "precommit": "node scripts/check-no-vault.mjs && npm run format && npm run lint && npm run typecheck && npm run test && npm run e2e && npm run scan",
     "connect": "tsx backend/src/connect/main.ts",
     "scan": "node scripts/veracode-scan.mjs"

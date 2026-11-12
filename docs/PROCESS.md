@@ -17,7 +17,7 @@ The scan packages only the files git tracks (never the vault, `.env`, `node_modu
 
 You don't start the checks yourself: `git commit` sets off a chain of four links, each pointing to the next. Here is the chain, so you can find where each step is defined.
 
-1. **Installing the project puts a hook into git.** `npm install` runs the `prepare` script in the root `package.json` (`"prepare": "simple-git-hooks"`). That reads the `"simple-git-hooks"` block in the same file and writes it into `.git/hooks/pre-commit`. Git runs that file before every commit.
+1. **Installing the project puts a hook into git.** `npm install` runs the `prepare` script in the root `package.json` (`"prepare": "node scripts/install-hooks.mjs"`), which runs simple-git-hooks. In an install without dev dependencies (the SRCCLR agent's `npm install --only production`, or a CI job) or in a copy without `.git`, it skips this and says why, rather than failing the install. simple-git-hooks reads the `"simple-git-hooks"` block in the same file and writes it into `.git/hooks/pre-commit`. Git runs that file before every commit.
 2. **The hook runs one command.** The block says `"pre-commit": "npm run precommit"`, so every `git commit` runs the `precommit` script first.
 3. **That script runs the checks in order.** `precommit` in the root `package.json` runs each step only if the one before it passed:
 
