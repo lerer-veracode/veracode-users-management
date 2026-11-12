@@ -404,6 +404,28 @@ describe("listUsers in bulk (PLAN_CACHE phase 4)", () => {
     expect(users[249]).toMatchObject({ roles: [], last_login: "2026-11-07T10:00:00Z" });
   });
 
+  it("reads the list while the roles are still being read", async () => {
+    const fetchFn = stub();
+    let giveRoles: (roles: typeof known) => void = () => undefined;
+    const roles = new Promise<typeof known>((resolve) => (giveRoles = resolve));
+    const listing = listUsers(CREDS, new TokenCache(fetchFn), fetchFn, roles);
+    await vi.waitFor(() => expect(paths(fetchFn)).toContain("/v2/users?page=0"));
+    giveRoles(known);
+    const users = await listing;
+    expect(users[50]?.user_type).toBe("API");
+  });
+
+  it("fails with the list's error when the roles fail too", async () => {
+    const fetchFn = stub();
+    fetchFn.mockImplementation(async () => new Response("{}", { status: 403 }));
+    const roles = Promise.reject(new Error("roles failed"));
+    const error: unknown = await listUsers(CREDS, new TokenCache(fetchFn), fetchFn, roles).catch(
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(Error);
+    expect(String(error)).not.toContain("roles failed");
+  });
+
   it("doesn't read every role for users by_role never returns", async () => {
     // Every 50th user (the API ones) is missing from by_role's answers.
     const fetchFn = stub(200, (i) => i % 50 === 0);

@@ -89,6 +89,7 @@ export const USERS: User[] = PEOPLE.map(([first, last, type, roles, active], i) 
   return {
     user_id: `00000000-0000-4000-8000-${String(i + 1).padStart(12, "0")}`,
     user_name: userName,
+    details_pending: false,
     locked: roles.includes("extadmin")
       ? `${userName} has the Administrator role. This app never changes or deletes administrators.`
       : type === "UI"

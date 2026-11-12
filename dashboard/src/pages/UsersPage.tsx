@@ -185,6 +185,19 @@ export function UsersPage({ state, reload, refreshTeams, picker, onUnauthorized 
               </button>
             </div>
           )}
+          {state.status === "ready" && state.details === "loading" && (
+            <p className="muted small details-note" role="status">
+              Reading last login, type and MFA from Veracode...
+            </p>
+          )}
+          {state.status === "ready" && typeof state.details === "object" && (
+            <p className="error-text small details-note" role="alert">
+              Couldn't read last login, type and MFA: {state.details.error}{" "}
+              <button type="button" className="link" onClick={() => void reload(true)}>
+                Try again
+              </button>
+            </p>
+          )}
           {state.status === "ready" && (
             <>
               <UsersTable

@@ -44,6 +44,9 @@ type FakeState = {
   teams: typeof TEAMS;
   // The users read afresh with /api/users/read.
   reads: string[];
+  // Set: /api/users sends a first view without details, and /api/users/details answers once
+  // this promise settles (PLAN_CACHE phase 6).
+  detailsGate: Promise<void> | null;
   // What the dashboard sent to each change route, and an error to answer with.
   sent: { path: string; body: unknown }[];
   changeError: string;
@@ -59,6 +62,7 @@ const fakeBackend = () => {
     users: [...USERS],
     teams: [...TEAMS],
     reads: [],
+    detailsGate: null,
     sent: [],
     changeError: "",
     connections: [
@@ -144,6 +148,12 @@ const fakeBackend = () => {
       }
       return reply(200, { ok: false, message: "Signed in, but not allowed to read users (403)." });
     }
+    if (path === "/api/users/details") {
+      await state.detailsGate;
+      const active = state.connections.find((c) => c.active);
+      const connection = { id: active?.id, name: active?.name, region: active?.region };
+      return reply(200, { connection, users: state.users, complete: true });
+    }
     if (path === "/api/users" || path === "/api/roles" || path === "/api/teams") {
       if (state.usersError) return reply(502, { error: state.usersError });
       const active = state.connections.find((c) => c.active);
@@ -154,7 +164,18 @@ const fakeBackend = () => {
       return reply(
         200,
         path === "/api/users"
-          ? { connection, users }
+          ? state.detailsGate
+            ? {
+                connection,
+                complete: false,
+                users: users.map((u) => ({
+                  ...u,
+                  details_pending: true,
+                  last_login: null,
+                  locked: u.locked ?? "Details still loading.",
+                })),
+              }
+            : { connection, users }
           : path === "/api/teams"
             ? { connection, teams: state.teams }
             : { connection, roles: ROLES },
@@ -688,6 +709,23 @@ describe("users page", () => {
     expect(tableRows()).toHaveLength(11);
     expect(await orgName("acme")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add New User" })).toBeEnabled();
+  });
+
+  it("shows the users first, then fills in last login, type and MFA", async () => {
+    let release = () => {};
+    backend.state.detailsGate = new Promise((resolve) => (release = resolve));
+    await go("#/users");
+    expect(await screen.findByText("1-10 of 23")).toBeInTheDocument();
+    expect(
+      screen.getByText("Reading last login, type and MFA from Veracode..."),
+    ).toBeInTheDocument();
+    const firstRow = tableRows()[1] as HTMLElement;
+    expect(within(firstRow).getAllByText("…")).toHaveLength(2);
+    release();
+    await waitFor(() =>
+      expect(screen.queryByText("Reading last login, type and MFA from Veracode...")).toBeNull(),
+    );
+    expect(within(tableRows()[1] as HTMLElement).queryAllByText("…")).toHaveLength(0);
   });
 
   it("filters, clears and pages", async () => {

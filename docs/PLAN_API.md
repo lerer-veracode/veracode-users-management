@@ -58,7 +58,7 @@ Success criteria:
 - [x] Signing in after a connection's date has passed revokes it and removes it, and says so.
 - [x] Passwords under 12 characters, mismatched passwords, duplicate connection names and a wrong sign-in are refused with a clear message.
 - [x] Nothing the command prints contains a secret or a password.
-- [ ] Run by hand against the real Admin API service account: a connection is added, tested and listed. (Needs the administrator's credentials.)
+- [x] Run by hand against the real Admin API service account: a connection is added, tested and listed. Confirmed by the administrator on 2026-11-12: the connection in use is a real organization.
 
 ## Phase 4: sign-in and sessions in the backend
 
@@ -75,7 +75,7 @@ Success criteria:
 - [x] `GET /api/connections` never contains a secret; checked by a test that searches the response for it.
 - [x] A session idle for 30 minutes is signed out (tested with a fake clock).
 - [x] In the browser (Playwright, with a throwaway vault on its own ports): a wrong password is refused, sign in, see the vault's connection and its days left, sign out. Testing and switching connections are covered by the dashboard tests with a fake backend.
-- [ ] Run by hand with the real vault: sign in, test the real connection, see "Connected". (Needs the administrator's vault.)
+- [x] Run by hand with the real vault: sign in, test the real connection, see "Connected". Confirmed by the administrator on 2026-11-12.
 
 ## Phase 5a: read the real users and roles
 

@@ -60,6 +60,8 @@ export type VeracodeUser = {
   roles: RoleRef[];
   permissions: Permission[];
   teams: Team[];
+  // Set on the first view of the list, before last login, type and MFA are read (docs/PLAN_CACHE.md, phase 6).
+  details_pending?: true;
 };
 
 export type VeracodeRole = RoleRef & {
@@ -266,13 +268,34 @@ const readByRole = async (
 // 3. Anyone still not seen (no role, not returned by by_role, or a call failed) has their own
 //    record read. That record has no last login.
 // If the list's options don't work, every user's own record is read, one call each, as before.
-// known: the organization's roles, to tell API roles (the list's roles don't say).
+// roles: the organization's roles, to tell API roles (the list's roles don't say). A promise is
+// read alongside the list rather than before it, so the two Veracode waits overlap.
 export const listUsers = async (
   creds: Credentials,
   tokens: TokenCache,
   fetchFn: Fetch,
-  known: VeracodeRole[] = [],
+  roles: VeracodeRole[] | Promise<VeracodeRole[]> = [],
+  // Called with the bulk list as soon as it's read, before the role reads that add last login,
+  // type and MFA, so the page can show users sooner. Not called when the bulk list doesn't work.
+  onFirst?: (users: VeracodeUser[]) => void,
 ): Promise<VeracodeUser[]> => {
+  const rolesRead = Promise.resolve(roles);
+  // If the list fails first, the roles' failure is never awaited; this keeps it from going unhandled.
+  rolesRead.catch(() => undefined);
+  let known: VeracodeRole[] = [];
+  const isApiRole = (name: string) => known.some((k) => k.role_name === name && k.is_api);
+  const merge = (basic: Json, full?: Json): VeracodeUser => {
+    // The full record wins, except for teams: by_role records have none, so the list's are kept.
+    const merged: Json = { ...basic, ...full };
+    if (Array.isArray(basic.teams)) merged.teams = basic.teams;
+    if (Array.isArray(merged.roles)) {
+      merged.roles = records(merged.roles).map((r) => ({
+        ...r,
+        is_api: r.is_api === true || isApiRole(str(r.role_name)),
+      }));
+    }
+    return toUser(merged);
+  };
   let basics: Json[] = [];
   let bulk = true;
   try {
@@ -283,6 +306,9 @@ export const listUsers = async (
     bulk = false;
   }
   if (!bulk) basics = await readAll(creds, tokens, fetchFn, "/v2/users", "users", {});
+  known = await rolesRead;
+
+  if (bulk) onFirst?.(basics.map((b) => ({ ...merge(b), details_pending: true })));
 
   const ids = basics.map((u) => str(u.user_id));
   const full = new Map<string, Json>();
@@ -303,20 +329,7 @@ export const listUsers = async (
       ),
   );
 
-  const isApiRole = (name: string) => known.some((k) => k.role_name === name && k.is_api);
-  return basics.map((basic) => {
-    const id = str(basic.user_id);
-    // The full record wins, except for teams: by_role records have none, so the list's are kept.
-    const merged: Json = { ...basic, ...full.get(id) };
-    if (Array.isArray(basic.teams)) merged.teams = basic.teams;
-    if (Array.isArray(merged.roles)) {
-      merged.roles = records(merged.roles).map((r) => ({
-        ...r,
-        is_api: r.is_api === true || isApiRole(str(r.role_name)),
-      }));
-    }
-    return toUser(merged);
-  });
+  return basics.map((basic) => merge(basic, full.get(str(basic.user_id))));
 };
 
 const userUrl = (creds: Credentials, id: string, query = "") =>

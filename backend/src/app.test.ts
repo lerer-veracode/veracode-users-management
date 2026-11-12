@@ -598,7 +598,7 @@ describe("changing users", () => {
 
   it("marks administrators and API accounts as locked, and which roles may be given", async () => {
     const { app, cookie } = await ready();
-    const users = (await (await get(app, "/api/users", cookie)).json()).users as Rec[];
+    const users = (await (await get(app, "/api/users/details", cookie)).json()).users as Rec[];
     expect(users.map((u) => [u.user_name, u.locked])).toEqual([
       ["jdoe", null],
       [
@@ -843,11 +843,48 @@ describe("changing users", () => {
     expect((await b.json()).users).toEqual((await a.json()).users);
     const lists = fetchFn.mock.calls.filter(([u]) => String(u).includes("/v2/users?detailed=true"));
     expect(lists).toHaveLength(1);
+    // Let the details finish before the test's files are removed.
+    await get(app, "/api/users/details", cookie);
+  });
+
+  it("sends the bulk list first, then the details, and reads the roles once (PLAN_CACHE phase 6)", async () => {
+    const { app, cookie, fetchFn } = await ready();
+    const calls = (part: string) =>
+      fetchFn.mock.calls.filter(([u]) => String(u).includes(part)).length;
+    const [usersRes, rolesRes] = await Promise.all([
+      get(app, "/api/users", cookie),
+      get(app, "/api/roles", cookie),
+    ]);
+    expect(rolesRes.status).toBe(200);
+    const first = (await usersRes.json()) as { complete: boolean; users: Rec[] };
+    expect(first.complete).toBe(false);
+    const lockOf = (users: Rec[], name: string) => users.find((u) => u.user_name === name)?.locked;
+    // Until their details are in, users can't be changed; an administrator says why as before.
+    expect(lockOf(first.users, "jdoe")).toBe(
+      "This user's details are still being read from Veracode. Try again in a moment.",
+    );
+    expect(lockOf(first.users, "boss")).toContain("Administrator role");
+
+    const full = (await (await get(app, "/api/users/details", cookie)).json()) as {
+      complete: boolean;
+      users: Rec[];
+    };
+    expect(full.complete).toBe(true);
+    expect(lockOf(full.users, "jdoe")).toBeNull();
+    expect(full.users.some((u) => u.details_pending)).toBe(false);
+
+    // Kept now: the next load is complete at once, with no call.
+    const before = fetchFn.mock.calls.length;
+    const again = (await (await get(app, "/api/users", cookie)).json()) as { complete: boolean };
+    expect(again.complete).toBe(true);
+    expect(fetchFn.mock.calls.length).toBe(before);
+    expect(calls("/v2/roles")).toBe(1);
+    expect(calls("/v2/users?detailed=true")).toBe(1);
   });
 
   it("uses Veracode's save reply when it holds the whole user, and reads the user when not", async () => {
     const { app, cookie, connection_id, fetchFn } = await ready();
-    await get(app, "/api/users", cookie);
+    await get(app, "/api/users/details", cookie);
     const userReads = () =>
       fetchFn.mock.calls.filter(
         ([url, init]) => (init?.method ?? "GET") === "GET" && String(url).includes("/v2/users/u1"),
@@ -894,7 +931,8 @@ describe("changing users", () => {
     const { app, cookie, connection_id, fetchFn, users } = await ready();
     const u1 = users[0] as Rec;
     u1.last_login = "2026-11-01T10:00:00Z";
-    const list = async () => (await (await get(app, "/api/users", cookie)).json()).users as Rec[];
+    const list = async () =>
+      (await (await get(app, "/api/users/details", cookie)).json()).users as Rec[];
     expect((await list()).find((u) => u.user_id === "u1")?.last_login).toBe("2026-11-01T10:00:00Z");
     // A user's own record has no last login (REALITY 39).
     delete u1.last_login;

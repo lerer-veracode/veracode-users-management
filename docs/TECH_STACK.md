@@ -20,7 +20,9 @@ All TypeScript, Node 26, npm workspaces from the root `package.json`.
   2. `GET /v2/users/by_role/{roleId}`, most held roles first, until every user with a role has been seen: full records, with last login, MFA, user type and permissions. A user's own record has no last login.
   3. `GET /v2/users/{id}`, 8 at a time, for anyone still not seen, or for everyone if the list's options stop working.
 
-  The backend keeps only the fields the app uses, and keeps the list for 15 minutes per connection; `?refresh=1` reads afresh. After a create, change or delete, it patches the kept list with that one user (keeping their last login) instead of reading it again. `POST /api/users/read` reads one user afresh when their details or the edit form open.
+  Steps 2 and 3 run after the first view is sent (`docs/PLAN_CACHE.md`, phase 6): `GET /api/users` answers as soon as step 1 is read, with `complete: false`, each user marked `details_pending` and locked until their details are in (an administrator keeps the Administrator reason). `GET /api/users/details` waits for steps 2 and 3 and answers the complete list, `complete: true`. Step 1 runs alongside the roles read (the roles say which are API roles), not after it. A users read under way is shared, and so is a roles or teams read: the users list and the roles page ask for the roles at the same moment, and one call answers both.
+
+  The backend keeps only the fields the app uses, and keeps the complete list for 15 minutes per connection; `?refresh=1` reads afresh. After a create, change or delete, it patches the kept list with that one user (keeping their last login) instead of reading it again. `POST /api/users/read` reads one user afresh when their details or the edit form open.
 
 - Changing users (`backend/src/veracode/rules.ts` and `identity.ts`):
   - The dashboard posts to fixed URLs, `POST /api/users/create`, `/api/users/update` and `/api/users/delete`, with `connection_id` (the connection on screen), the user `id`, and `user`, `changes` or `confirm` in the body. A change is refused (409) unless `connection_id` is still the connection in use.

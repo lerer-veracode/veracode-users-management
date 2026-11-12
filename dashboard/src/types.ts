@@ -43,6 +43,8 @@ export type User = {
   permissions: Permission[];
   teams: Team[];
   last_login: string | null;
+  // True until last login, type and MFA are read (docs/PLAN_CACHE.md, phase 6).
+  details_pending: boolean;
   // Why this app won't change or delete the user (an administrator, or not a UI user), or null.
   locked: string | null;
 };
