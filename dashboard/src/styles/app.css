@@ -925,3 +925,9 @@ fieldset.field {
   border-radius: 2px;
   font-size: 13px;
 }
+
+/* "Reading last login, type and MFA" above the users table, while the details load. */
+.details-note {
+  margin: 0;
+  padding: 8px 16px;
+}

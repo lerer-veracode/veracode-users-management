@@ -1,12 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ApiError, getRoles, getTeams, getUsers } from "../lib/api";
+import { ApiError, getRoles, getTeams, getUserDetails, getUsers } from "../lib/api";
 import type { Role, Source, TeamOption, User } from "../types";
 
 export type DirectoryState =
   | { status: "no-connection" }
   | { status: "loading" }
   | { status: "error"; message: string }
-  | { status: "ready"; source: Source; users: User[]; roles: Role[]; teams: TeamOption[] };
+  | {
+      status: "ready";
+      source: Source;
+      users: User[];
+      roles: Role[];
+      teams: TeamOption[];
+      // "loading" while last login, type and MFA are read after the first view, or why they
+      // couldn't be (docs/PLAN_CACHE.md, phase 6).
+      details: "done" | "loading" | { error: string };
+    };
 
 // The users and roles of the chosen connection, read live from Veracode through the backend.
 // Nothing loads until a connection is chosen, and an answer for a connection that is no
@@ -43,7 +52,22 @@ export const useDirectory = (activeId: string | null | undefined, onUnauthorized
           users: users.users,
           roles: roles.roles,
           teams: teams.teams,
+          details: users.complete ? "done" : "loading",
         });
+        if (users.complete) return;
+        // The first view is on screen; the rest follows.
+        try {
+          const full = await getUserDetails();
+          if (request !== latest.current || full.source.id !== activeId) return;
+          setState((s) =>
+            s.status === "ready" ? { ...s, users: full.users, details: "done" } : s,
+          );
+        } catch (e) {
+          if (request !== latest.current) return;
+          if (e instanceof ApiError && e.status === 401) return onUnauthorized();
+          const error = e instanceof Error ? e.message : String(e);
+          setState((s) => (s.status === "ready" ? { ...s, details: { error } } : s));
+        }
       } catch (e) {
         if (request !== latest.current) return;
         if (e instanceof ApiError && e.status === 401) return onUnauthorized();

@@ -102,3 +102,21 @@ Success criteria:
 - [ ] The Activity log for one load shows the bulk calls and no `user.read` per user. Opening a user's details more than a minute after the list was read shows one `user.read`; sooner, none.
 - [ ] Editing the test user (the only user that may be changed) shows a safety-check `user.read` before the `user.update`, and after it a second `user.read` only if the save reply didn't hold the user (the update line's "Got" says which). No full reload.
 - [ ] `docs/REALITY.md` and `docs/STATUS.md` record what was seen.
+
+## Phase 6: show the users first, then their details
+
+Added 2026-11-11, at the administrator's request. On the real organization each Veracode call took 3 to 11 seconds, and a load waited for two in a row: the bulk list, then the `by_role` reads. `by_role` is the only source of last login (entry 39), so it stays, but the page no longer waits for it. The roles were also read twice at page load, by the users list and the roles page at the same moment.
+
+- `GET /api/users` answers as soon as the bulk list is read, with `complete: false`. Each user is marked `details_pending`, and locked with "This user's details are still being read from Veracode. Try again in a moment." until their details are in; an administrator keeps the Administrator reason.
+- `GET /api/users/details` (a fixed URL) waits for the `by_role` and per-user reads under way and answers the complete list. Only the complete list is kept.
+- The dashboard shows the first view at once, with "…" for Type, Last login and MFA and a note "Reading last login, type and MFA from Veracode...", then swaps in the complete list. If the details fail, it says so, keeps the first view and offers Try again.
+- A roles or teams read under way is shared, like the users read.
+- The roles and the bulk list are read at the same time, not one after the other (added 2026-11-12: on the real organization the list waited 5 seconds for the roles).
+
+Success criteria:
+
+- [x] Backend tests: the first view has `complete: false` and pending locks (the administrator keeps the Administrator reason); `/api/users/details` has `complete: true` and no pending users; a later load comes from the kept list with no call; the roles are read once and the bulk list once.
+- [x] Backend test: the bulk list is read while the roles are still being read, and the roles still mark API users.
+- [x] Dashboard test: the users show with "…" and the note, then the details fill in and the note goes.
+- [x] `npm run check` passes.
+- [x] On the real organization (administrator, read only): the users appear after one Veracode wait, and last login, type and MFA a few seconds later; the Activity log shows one `role.list` per load. Seen 2026-11-12: the roles, teams and users list started together (about 16 seconds each that day), then 3 `by_role` reads at once (about 15 seconds), and no read per user.

@@ -2,12 +2,18 @@
 
 The vault, `npm run connect`, sign-in, the Connections and Activity pages, and reading the organization's real users and roles are real. Adding, changing and deleting users (phase 5b) is built and tested against the local stand-in for Veracode; it hasn't been tried on the real organization yet. Plan: `docs/PLAN_API.md`, phases 1 to 4 and 5a done, 5b built, 5c next.
 
-## Where we left off (2026-11-10)
+## Where we left off (2026-11-11)
 
-Next: phase 5c of `docs/PLAN_API.md`, step 2, changing the test user on the real organization, run by the administrator by hand in the app. Read the phase's rules first; they repeat the hard rules in `AGENTS.md`.
+Next, in this order:
+
+1. **`docs/PLAN_CACHE.md` phase 6**, on the branch `phase/cache-6-users-first`: confirmed on the real organization on 2026-11-12, all checks passed. The roles and the users list are now read at the same time. **Waiting for the administrator's explicit instruction to merge**; then squash-merge into `main` and delete the branch.
+2. **Link the repository to GitHub** so pull requests and CI/CD can run (`docs/PROCESS.md`, "Branches and pull requests"). The empty repository exists: https://github.com/lerer-veracode/veracode-users-management (2026-11-12). The GitHub CLI (`gh`) isn't installed yet; it's needed for pull requests. Then add the remote and push `main`. A CI pipeline (format, lint, typecheck, unit tests, e2e and the Veracode scan, with the Veracode API credentials as repository secrets, never in the code) is its own phase, planned first.
+3. **Offered, not yet agreed:** a read-only timing test, to see whether Veracode queues calls sent at the same time (one call alone, then the same call four at once). Veracode's Identity API took 3 to 4 seconds per call on 2026-11-10 and 9 to 11 on 2026-11-11.
+4. Then phase 5c of `docs/PLAN_API.md`, step 2, changing the test user on the real organization, run by the administrator by hand in the app. Read the phase's rules first; they repeat the hard rules in `AGENTS.md`.
 
 - **`docs/PLAN_CACHE.md`, fewer calls to Veracode:** phases 1 to 4 are done. Roles and teams are kept per connection until a sign-in or a refresh. Users are read in bulk: the list with its options gives roles and teams, `by_role` gives last login, MFA and type, and a user's own record is read only when needed. After a change, only that user is read. Last login now shows on the real organization: a user's own record never had it (entry 39). **Phase 5 is for the administrator, read only:** compare the Users page with the Platform, and check the Activity log for one load (no `user.read` per user) and after an edit of the test user (one `user.read`).
 
+- **Confirmed, not merged (2026-11-12):** `docs/PLAN_CACHE.md` phase 6. The Users page shows users after the bulk list, then fills in last login, type and MFA from the `by_role` reads; the roles are read once per load, alongside the list. Phase 5 of that plan (the administrator's read-only checks) is still open for the edit check.
 - **New way of working (2026-11-10):** each new phase gets its own branch and an early draft pull request, commits only with substance, CI checks before finishing, and a squash merge. See "Branches and pull requests" in `docs/PROCESS.md`. There is no git remote or CI/CD yet.
 - **Fewer reads and a clearer Activity log (2026-11-10):** each call to Veracode in the log now says why it was made, how long it took, and what came back as counts only. Opening a user's details or edit form within a minute of reading them uses the kept copy. After a save, the user is read again only if Veracode's reply didn't hold them. The safety check before every change stays. To see on the next edit of the test user: what the `user.update` line "Got" (REALITY entry 23).
 - **The test user exists:** its user name, id and connection are in `.local/test-user.md` (git-ignored, so they never reach GitHub). Created 2026-11-09 as Security Lead with Any Scan and no team, and since changed: on 2026-11-10 it was Creator and Submitter with Any Scan, a member of Developers. The one-user allowance is used: **no other create**, and only this user may be changed or deleted.

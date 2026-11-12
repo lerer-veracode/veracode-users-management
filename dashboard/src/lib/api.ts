@@ -41,6 +41,7 @@ const ROUTES = {
   audit: "/api/audit/page",
   users: "/api/users",
   usersFresh: "/api/users?refresh=1",
+  userDetails: "/api/users/details",
   roles: "/api/roles",
   rolesFresh: "/api/roles?refresh=1",
   teams: "/api/teams",
@@ -189,11 +190,20 @@ const toSource = (data: Json): Source => {
   return { id: str(s.id), name: str(s.name), region: str(s.region) };
 };
 
-export const getUsers = async (fresh = false): Promise<{ source: Source; users: User[] }> => {
-  const data = await call(fresh ? "usersFresh" : "users");
+export type UsersAnswer = { source: Source; users: User[]; complete: boolean };
+
+const toUsersAnswer = (data: unknown): UsersAnswer => {
   const d = isRecord(data) ? data : {};
-  return { source: toSource(d), users: list(d.users).map(toUser) };
+  return { source: toSource(d), users: list(d.users).map(toUser), complete: d.complete !== false };
 };
+
+// The first view of the users: complete is false while last login, type and MFA are still
+// being read; getUserDetails then waits for them.
+export const getUsers = async (fresh = false): Promise<UsersAnswer> =>
+  toUsersAnswer(await call(fresh ? "usersFresh" : "users"));
+
+export const getUserDetails = async (): Promise<UsersAnswer> =>
+  toUsersAnswer(await call("userDetails"));
 
 const toUser = (u: Json): User => ({
   user_id: str(u.user_id),
@@ -216,6 +226,7 @@ const toUser = (u: Json): User => ({
     team_name: str(x.team_name),
     relationship: x.relationship === "ADMIN" ? "ADMIN" : "MEMBER",
   })),
+  details_pending: u.details_pending === true,
   // A user the backend doesn't vouch for is treated as locked.
   locked: "locked" in u ? strOrNull(u.locked) : "Unknown whether this user may be changed.",
 });

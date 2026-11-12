@@ -48,9 +48,9 @@ export function UsersTable({ users, sort, onSort, onView, onEdit, onLogin, onDel
             </td>
             <td>{fullName(u)}</td>
             <td>{u.email_address}</td>
-            <td>{u.user_type}</td>
+            <td>{u.details_pending ? "…" : u.user_type}</td>
             <td className="roles">{u.roles.map((r) => r.role_description).join(", ")}</td>
-            <td className="nowrap">{formatDateTime(u.last_login)}</td>
+            <td className="nowrap">{u.details_pending ? "…" : formatDateTime(u.last_login)}</td>
             <td>
               <StatusPill tone={u.active ? "success" : "warning"}>
                 {u.active ? "Active" : "Inactive"}

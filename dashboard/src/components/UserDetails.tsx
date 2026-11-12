@@ -21,10 +21,10 @@ export function UserDetails({ user, roles, source, onClose, onEdit, onDelete }: 
     ["Connection", `${source.name} (${source.region})`],
     ["Name", fullName(user)],
     ["Email", user.email_address],
-    ["Type", user.user_type],
-    ["Last login", formatDateTime(user.last_login)],
+    ["Type", user.details_pending ? "…" : user.user_type],
+    ["Last login", user.details_pending ? "…" : formatDateTime(user.last_login)],
     ["Login", user.login_enabled ? "Enabled" : "Disabled"],
-    ["MFA", user.pin_required ? "Required" : "Not required"],
+    ["MFA", user.details_pending ? "…" : user.pin_required ? "Required" : "Not required"],
     ["User ID", user.user_id],
   ];
   const teamNames = (relationship: "ADMIN" | "MEMBER") =>

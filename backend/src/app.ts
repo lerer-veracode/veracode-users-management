@@ -28,6 +28,7 @@ import {
   assignable,
   checkChanges,
   checkNewUser,
+  isAdministratorRole,
   protectedReason,
   roleKind,
   type Org,
@@ -301,33 +302,51 @@ export const createApp = (deps: AppDeps) => {
   // phase 3). No time limit and no schedule.
   const keptRoles = new Map<string, VeracodeRole[]>();
   const keptTeams = new Map<string, VeracodeTeam[]>();
-  const kept =
-    <T>(store: Map<string, T>, read: (conn: Connection) => Promise<T>) =>
-    async (conn: Connection, fresh = false): Promise<T> => {
+  // A read already under way is shared: at page load the users list and the roles page both
+  // ask for the roles at the same moment, and one call answers both.
+  const kept = <T>(store: Map<string, T>, read: (conn: Connection) => Promise<T>) => {
+    const reading = new Map<string, Promise<T>>();
+    return async (conn: Connection, fresh = false): Promise<T> => {
       const hit = store.get(conn.id);
       if (hit && !fresh) return hit;
-      const value = await read(conn);
-      store.set(conn.id, value);
-      return value;
+      let running = reading.get(conn.id);
+      if (!running) {
+        running = read(conn).then((value) => {
+          store.set(conn.id, value);
+          return value;
+        });
+        reading.set(conn.id, running);
+        const done = () => reading.delete(conn.id);
+        void running.then(done, done);
+      }
+      return running;
     };
+  };
   const rolesOf = kept(keptRoles, (conn) => listRoles(conn, tokens, veracode));
   const teamsOf = kept(keptTeams, (conn) => listTeams(conn, tokens, veracode));
+
+  // The connection in use, and how answers name it, or the answer to give when there's none.
+  // Every answer names the connection it came from, so lists from two organizations can't be mixed up.
+  const connOf = (c: Context<Env>) => {
+    const session = c.var.session;
+    const conn = inUse(session);
+    if (!conn) {
+      const error =
+        live(session).length > 1
+          ? "Choose a connection first."
+          : "No connection in use. Add one with npm run connect.";
+      return c.json({ error }, 409);
+    }
+    return { conn, from: { id: conn.id, name: conn.name, region: REGIONS[conn.region].label } };
+  };
 
   // kept: the read keeps its own copy (roles, teams), so the short cache isn't used.
   const readFromVeracode =
     <T>(name: string, read: (conn: Connection, fresh: boolean) => Promise<T>, kept = false) =>
     async (c: Context<Env>) => {
-      const session = c.var.session;
-      const conn = inUse(session);
-      if (!conn) {
-        const error =
-          live(session).length > 1
-            ? "Choose a connection first."
-            : "No connection in use. Add one with npm run connect.";
-        return c.json({ error }, 409);
-      }
-      // Every answer names the connection it came from, so lists from two organizations can't be mixed up.
-      const from = { id: conn.id, name: conn.name, region: REGIONS[conn.region].label };
+      const found = connOf(c);
+      if (found instanceof Response) return found;
+      const { conn, from } = found;
       const key = `${name}:${conn.id}`;
       const hit = cache.get(key);
       const now = deps.now().getTime();
@@ -361,12 +380,85 @@ export const createApp = (deps: AppDeps) => {
   // Each user says whether this app may change them, and why not; each role whether it may be given.
   const withLock = (u: VeracodeUser) => ({ ...u, locked: protectedReason(u) });
 
-  app.get(
-    "/users",
-    readFromVeracode("users", async (conn) =>
-      (await listUsers(conn, tokens, veracode, await rolesOf(conn))).map(withLock),
-    ),
-  );
+  // The users load in two steps (docs/PLAN_CACHE.md, phase 6). The first view is the bulk list,
+  // sent as soon as it's read; the role reads that add last login, type and MFA carry on, and
+  // GET /users/details waits for them. Only the complete list is kept. A user on the first view
+  // is locked until their details are in, unless they're an administrator.
+  type Listed = ReturnType<typeof withLock>;
+  type UsersLoad = { first: Promise<Listed[]>; full: Promise<Listed[]> };
+  const usersLoading = new Map<string, UsersLoad>();
+  const PENDING = "This user's details are still being read from Veracode. Try again in a moment.";
+  const firstView = (u: VeracodeUser) => ({
+    ...u,
+    locked: u.roles.some(isAdministratorRole) ? protectedReason(u) : PENDING,
+  });
+
+  const loadUsers = (conn: Connection, fresh: boolean): UsersLoad => {
+    const key = `users:${conn.id}`;
+    const running = usersLoading.get(key);
+    if (running) return running;
+    const version = versions.get(key) ?? 0;
+    const at = deps.now().getTime();
+    let showFirst: (users: Listed[]) => void = () => undefined;
+    const early = new Promise<Listed[]>((resolve) => (showFirst = resolve));
+    const purpose = `${fresh ? "Refresh: " : ""}Load the users list`;
+    const full = withAudit({ connection: ref(conn), purpose }, async () => {
+      // The roles and the users list are read at the same time (docs/PLAN_CACHE.md, phase 6).
+      const users = await listUsers(conn, tokens, veracode, rolesOf(conn), (first) =>
+        showFirst(first.map(firstView)),
+      );
+      return users.map(withLock);
+    });
+    // Without a first view (the bulk list didn't work), the complete list is the first view.
+    const load = { first: Promise.race([early, full]), full };
+    usersLoading.set(key, load);
+    void full
+      .then((value) => {
+        // A change made while it ran makes it out of date: it's shown, not kept.
+        if ((versions.get(key) ?? 0) === version) cache.set(key, { at, value });
+      })
+      .catch(() => undefined)
+      .finally(() => usersLoading.delete(key));
+    return load;
+  };
+  const keptUsers = (conn: Connection): Listed[] | undefined => {
+    const hit = cache.get(`users:${conn.id}`);
+    return hit && deps.now().getTime() - hit.at < CACHE_MS && Array.isArray(hit.value)
+      ? (hit.value as Listed[])
+      : undefined;
+  };
+
+  app.get("/users", async (c) => {
+    const found = connOf(c);
+    if (found instanceof Response) return found;
+    const { conn, from } = found;
+    const fresh = c.req.query("refresh") === "1";
+    const hit = fresh ? undefined : keptUsers(conn);
+    if (hit) return c.json({ connection: from, users: hit, complete: true });
+    try {
+      const users = await loadUsers(conn, fresh).first;
+      const complete = !users.some((u) => u.details_pending);
+      return c.json({ connection: from, users, complete });
+    } catch (e) {
+      return veracodeFailure(c, conn, e);
+    }
+  });
+
+  // The complete list: last login, type and MFA included. Waits for a load under way.
+  app.get("/users/details", async (c) => {
+    const found = connOf(c);
+    if (found instanceof Response) return found;
+    const { conn, from } = found;
+    const running = usersLoading.get(`users:${conn.id}`);
+    const hit = running ? undefined : keptUsers(conn);
+    if (hit) return c.json({ connection: from, users: hit, complete: true });
+    try {
+      const users = await (running ?? loadUsers(conn, false)).full;
+      return c.json({ connection: from, users, complete: true });
+    } catch (e) {
+      return veracodeFailure(c, conn, e);
+    }
+  });
   app.get(
     "/roles",
     readFromVeracode(
@@ -440,7 +532,6 @@ export const createApp = (deps: AppDeps) => {
   // After a change, the kept users are patched rather than read again: the changed user is put
   // in (or taken out), keeping their last login, which a user's own record doesn't have
   // (docs/REALITY.md, entry 39). With no user to put in, the list is dropped and read next time.
-  type Listed = ReturnType<typeof withLock>;
   const changed = (conn: Connection, id: string, user: VeracodeUser | null | "deleted") => {
     const key = `users:${conn.id}`;
     versions.set(key, (versions.get(key) ?? 0) + 1);
