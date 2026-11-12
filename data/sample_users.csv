@@ -1,0 +1,5 @@
+user_name,email_address,first_name,last_name,roles
+jdoe,jdoe@example.com,Jane,Doe,extseclead;extsubmitanyscan
+asmith,asmith@example.com,Alex,Smith,extreviewer
+mlopez,mlopez@example.com,Maria,Lopez,extseclead;extcreator
+,bad-row@example.com,No,Username,extreviewer

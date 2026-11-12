@@ -1,0 +1,28 @@
+/* Dark theme only for now. Light theme comes later: add a [data-theme="light"] block (see docs/BRAND.md). */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #1f1f1f;
+  --bg-header: #191919;
+  --panel: #2a2a2a;
+  --panel-raised: #3a3a3a;
+  --line: #3d3d3d;
+  --text: #ffffff;
+  --text-muted: #b8b8b8;
+  --primary: #00b3e6;
+  --primary-ink: #0b1a20;
+  --link: #1fa9de;
+  --success: #8bc34a;
+  --danger: #e5484d;
+  --warning: #f5a623;
+  --overlay: rgb(0 0 0 / 60%);
+  --signin-bg: #000000;
+  --signin-blue: #0064d9;
+  --signin-field: #3a3a3a;
+  --stripe-top: #00b3ff;
+  --stripe-bottom: rgb(0 179 255 / 0%);
+
+  --font: "Inter", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+  --radius: 8px;
+}

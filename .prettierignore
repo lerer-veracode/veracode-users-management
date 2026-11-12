@@ -1,0 +1,13 @@
+node_modules
+dist
+coverage
+playwright-report
+test-results
+package-lock.json
+docs/identity-api-1.5.json
+images
+.local
+e2e/.tmp
+.veracode
+filtered-results.json
+veracode-auto-pack-*.zip
