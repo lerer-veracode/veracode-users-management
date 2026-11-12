@@ -50,7 +50,7 @@ If you change the `"simple-git-hooks"` block, run `npx simple-git-hooks` to writ
 
 ## Packages
 
-Packages come through the Veracode package firewall. The project's `.npmrc` sets the firewall registry, with its access key in the URL, and `replace-registry-host=never`, and every `resolved` URL in `package-lock.json` points at the firewall. The access key is committed on purpose: it isn't a secret, and it puts everyone who installs the project behind the firewall. The pre-commit guard allows that one line and still refuses any other npm credential. The firewall is set to warn, not block, for now. A package the firewall blocks fails the install with "Blocked by package firewall"; packages it hasn't checked yet can be blocked at first and allowed minutes later.
+Packages come through the Veracode package firewall. The project's `.npmrc` sets the firewall registry, with its access key in the URL, and `replace-registry-host=never`, and every `resolved` URL in `package-lock.json` points at the firewall. The access key is committed on purpose: it isn't a secret, and it sends everyone who installs the project to the firewall. The firewall also needs an `_auth` credential for `npm.firewall.veracode.com` in each user's own `~/.npmrc` (or, in CI, from a secret); that is never committed (`docs/REALITY.md`, entry 19). The pre-commit guard allows that one line and still refuses any other npm credential. The firewall is set to warn, not block, for now. A package the firewall blocks fails the install with "Blocked by package firewall"; packages it hasn't checked yet can be blocked at first and allowed minutes later.
 
 ## Planning
 
