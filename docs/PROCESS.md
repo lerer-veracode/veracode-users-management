@@ -82,7 +82,7 @@ From 2026-11-10, each new phase is built on its own branch and reaches `main` th
 4. **Finish a phase.** When the administrator confirms the phase (or an agreed sub-phase) is complete, mark the pull request ready for review. It must pass every check in the CI/CD pipeline, if the repository has one, as well as `npm run check`. Fix any failure on the branch and push again.
 5. **Squash on merge.** Merge only after the administrator's go-ahead, and only by squash, so the phase lands on `main` as one commit. The squash message names the phase and sums up what it built. Then delete the branch, and update the local `main`.
 
-**Status on 2026-11-12:** the repository is on GitHub, https://github.com/lerer-veracode/veracode-users-management (private), with no CI/CD pipeline yet, so `npm run check` stands in for the CI checks. The local branches `history/*` hold the history from before 2026-11-12 and are never pushed. Without the GitHub CLI, pull requests are opened and merged on github.com, and a merge still needs the administrator's explicit instruction.
+**Status on 2026-11-12:** the repository is on GitHub, https://github.com/lerer-veracode/veracode-users-management (private), with no CI/CD pipeline yet, so `npm run check` stands in for the CI checks. The local branches `history/*` hold the history from before 2026-11-12 and are never pushed. Pull requests are opened and merged with the GitHub CLI (`gh`), and a merge always needs the administrator's explicit instruction.
 
 ## Rules
 
