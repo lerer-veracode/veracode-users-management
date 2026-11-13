@@ -619,7 +619,6 @@ describe("changing users", () => {
       {
         role_name: "custom-elearningadmin",
         role_description: "ELearning Admin",
-        child_roles: [{ role_name: "extreviewer" }],
       },
     ];
     const teams = [
@@ -709,11 +708,7 @@ describe("changing users", () => {
       ["noteamrestrictionapi", false, "plain"],
       ["custom-elearningadmin", true, "plain"],
     ]);
-    // The organization's own roles, with the roles they include, and the role the Platform
-    // shows as an API account's team setting (docs/PLAN_ROLES.md, phase 2).
-    expect(roles.filter((r) => r.custom).map((r) => [r.role_name, r.child_roles])).toEqual([
-      ["custom-elearningadmin", ["extreviewer"]],
-    ]);
+    // The role the Platform shows as an API account's team setting (docs/PLAN_ROLES.md, phase 2).
     expect(roles.filter((r) => r.no_team_restriction).map((r) => r.role_name)).toEqual([
       "noteamrestrictionapi",
     ]);

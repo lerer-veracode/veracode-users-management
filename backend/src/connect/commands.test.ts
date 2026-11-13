@@ -484,7 +484,6 @@ describe("npm run connect -- permissions", () => {
               {
                 role_name: "custom-elearningadmin",
                 role_description: "ELearning Admin",
-                child_roles: [{ role_name: "elearning" }],
               },
               {
                 role_name: "extsubmitstaticscan",
@@ -503,7 +502,7 @@ describe("npm run connect -- permissions", () => {
       "Signed in as yaakov.",
       "4 roles in acme (EU), read only:",
       "",
-      "ELearning Admin  (custom-elearningadmin)  [custom]  includes: elearning",
+      "ELearning Admin  (custom-elearningadmin)",
       "No Team Restriction API  (noteamrestrictionapi)  [API, all teams, team setting]",
       "Reviewer  (extreviewer)",
       "Static Scan  (extsubmitstaticscan)  [scan type]",

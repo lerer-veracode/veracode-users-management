@@ -5,7 +5,7 @@ import { formatDateTime, fullName } from "./format";
 import { planImport } from "./importPlan";
 import { EMPTY_FILTERS, filterUsers, pageCount, pageOf, sortUsers } from "./users";
 import { daysLeft } from "./retention";
-import { includedRoles, roleView } from "./roles";
+import { roleView } from "./roles";
 
 describe("formatDateTime", () => {
   it("formats like the platform", () => {
@@ -139,12 +139,9 @@ describe("roleView", () => {
       "Restricted to selected teams",
     );
   });
-  it("lists the organization's own roles apart, with the roles they include", () => {
+  it("shows the organization's own roles as ordinary roles, for now", () => {
     const view = roleView(user("hbrooks@example.com"), ROLES);
-    expect(view.roles.map((r) => r.role_name)).toEqual(["extreviewer"]);
-    expect(view.custom.map((r) => r.role_description)).toEqual(["ELearning Admin"]);
-    const [custom] = view.custom;
-    expect(custom && includedRoles(custom, ROLES)).toEqual(["Reviewer"]);
+    expect(view.roles.map((r) => r.role_name)).toEqual(["extreviewer", "custom-elearningadmin"]);
   });
   it("shows a role the organization's list doesn't have as a plain role", () => {
     const u = { ...user("mwebb@example.com"), roles: [{ role_name: "x", role_description: "X" }] };

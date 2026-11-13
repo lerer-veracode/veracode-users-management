@@ -30,7 +30,6 @@ import {
   checkNewUser,
   isAdministratorRole,
   protectedReason,
-  isCustomRole,
   isNoTeamRestriction,
   roleKind,
   type Org,
@@ -479,7 +478,6 @@ export const createApp = (deps: AppDeps) => {
           ...withoutHidden(hidden, r),
           assignable: ok.has(r.role_name),
           kind: roleKind(r),
-          custom: isCustomRole(r),
           no_team_restriction: isNoTeamRestriction(r),
         }));
       },

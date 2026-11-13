@@ -2,7 +2,7 @@ import { auditedFetch, connectionRef, withAudit, type AuditLog } from "../audit/
 import { REGIONS, isRegion } from "../regions.js";
 import { checkAccess, listRoles } from "../veracode/identity.js";
 import { inspectApi, inspectUsers } from "./inspect.js";
-import { isCustomRole, isNoTeamRestriction } from "../veracode/rules.js";
+import { isNoTeamRestriction } from "../veracode/rules.js";
 import {
   TokenCache,
   VeracodeError,
@@ -316,12 +316,10 @@ class Cli {
         r.is_api && "API",
         r.is_scan_type && "scan type",
         r.ignore_team_restrictions && "all teams",
-        isCustomRole(r) && "custom",
         isNoTeamRestriction(r) && "team setting",
       ].filter(Boolean);
-      const includes = r.child_roles.length > 0 ? `  includes: ${r.child_roles.join(", ")}` : "";
       this.say(
-        `${r.role_description}  (${r.role_name})${marks.length > 0 ? `  [${marks.join(", ")}]` : ""}${includes}`,
+        `${r.role_description}  (${r.role_name})${marks.length > 0 ? `  [${marks.join(", ")}]` : ""}`,
       );
     }
   }

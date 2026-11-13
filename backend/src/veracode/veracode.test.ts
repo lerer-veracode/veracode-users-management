@@ -255,7 +255,6 @@ describe("listUsers and listRoles", () => {
               role_name: "custom-elearningadmin",
               role_description: "ELearning Admin",
               ignore_team_restrictions: true,
-              child_roles: [{ role_name: "elearning" }, { role_description: "Reviewer" }, "odd"],
             },
           ],
         },
@@ -269,7 +268,6 @@ describe("listUsers and listRoles", () => {
         is_api: false,
         is_scan_type: false,
         ignore_team_restrictions: false,
-        child_roles: [],
         permissions: [
           { permission_name: "manageApps", permission_description: "Manage applications" },
         ],
@@ -281,7 +279,6 @@ describe("listUsers and listRoles", () => {
         is_api: true,
         is_scan_type: false,
         ignore_team_restrictions: false,
-        child_roles: [],
         permissions: [],
       },
       {
@@ -291,7 +288,6 @@ describe("listUsers and listRoles", () => {
         is_api: false,
         is_scan_type: false,
         ignore_team_restrictions: true,
-        child_roles: ["elearning", "Reviewer"],
         permissions: [],
       },
     ]);
@@ -390,7 +386,6 @@ describe("listUsers in bulk (PLAN_CACHE phase 4)", () => {
     ...r,
     is_scan_type: false,
     ignore_team_restrictions: false,
-    child_roles: [],
     permissions: [],
   }));
   const paths = (fetchFn: ReturnType<typeof stub>) =>

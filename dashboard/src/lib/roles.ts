@@ -1,8 +1,8 @@
 import type { Role, RoleRef, User } from "../types";
 
 // How a user's roles show, as on the Veracode Platform (docs/PLAN_ROLES.md, phase 2): scan types
-// as "Allowed scan types", "No Team Restriction API" as an API account's team memberships, and
-// the organization's own roles apart from Veracode's.
+// as "Allowed scan types", and "No Team Restriction API" as an API account's team memberships.
+// The organization's own roles show as ordinary roles for now (docs/PLAN_ROLES.md, later work).
 
 export const isScanType = (r: Role): boolean => r.kind === "scan_type" || r.kind === "any_scan";
 
@@ -16,15 +16,11 @@ const lookup = (roles: Role[], ref: RoleRef): Role =>
     permissions: [],
     assignable: false,
     kind: "plain",
-    custom: false,
     no_team_restriction: false,
-    child_roles: [],
   };
 
 export type RoleView = {
-  // Veracode's roles, then the organization's own.
   roles: Role[];
-  custom: Role[];
   // "All", the types by name, or "None"; null for an API account, which has no scan types.
   scanTypes: string | null;
   // For an API account only.
@@ -33,12 +29,10 @@ export type RoleView = {
 
 export const roleView = (user: User, roles: Role[]): RoleView => {
   const held = user.roles.map((ref) => lookup(roles, ref));
-  const shown = held.filter(isShownAsRole);
   const types = held.filter(isScanType);
   const api = user.user_type === "API";
   return {
-    roles: shown.filter((r) => !r.custom),
-    custom: shown.filter((r) => r.custom),
+    roles: held.filter(isShownAsRole),
     scanTypes: api
       ? null
       : types.some((r) => r.kind === "any_scan")
@@ -51,10 +45,6 @@ export const roleView = (user: User, roles: Role[]): RoleView => {
       : null,
   };
 };
-
-// The names of the roles a role includes, by description where known.
-export const includedRoles = (role: Role, roles: Role[]): string[] =>
-  role.child_roles.map((name) => roles.find((r) => r.role_name === name)?.role_description ?? name);
 
 // Whether the user may submit this scan type ("all": the user has All scan types). A user with
 // All may submit every type.

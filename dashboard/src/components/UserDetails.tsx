@@ -1,5 +1,5 @@
 import { formatDateTime, fullName } from "../lib/format";
-import { includedRoles, roleView } from "../lib/roles";
+import { roleView } from "../lib/roles";
 import type { Role, Source, User } from "../types";
 import { Dialog } from "./Dialog";
 import { StatusPill } from "./StatusPill";
@@ -14,8 +14,8 @@ type Props = {
 };
 
 export function UserDetails({ user, roles, source, onClose, onEdit, onDelete }: Props) {
-  // As on the Platform: scan types and the API team setting aren't listed as roles, and the
-  // organization's own roles are listed apart (docs/PLAN_ROLES.md, phase 2).
+  // As on the Platform: scan types and the API team setting aren't listed as roles
+  // (docs/PLAN_ROLES.md, phase 2).
   const view = roleView(user, roles);
   const settings: [string, string][] = [
     ...(view.scanTypes === null
@@ -25,14 +25,11 @@ export function UserDetails({ user, roles, source, onClose, onEdit, onDelete }: 
       ? []
       : [["Team memberships", view.teamMemberships] as [string, string]]),
   ];
-  const roleList = (list: Role[]) => (
+  const roleList = (
     <ul className="detail-list">
-      {list.map((r) => (
+      {view.roles.map((r) => (
         <li key={r.role_name}>
           <strong>{r.role_description}</strong> <span className="mono muted">{r.role_name}</span>
-          {r.child_roles.length > 0 && (
-            <p className="muted small">Includes: {includedRoles(r, roles).join(", ")}</p>
-          )}
           {r.permissions.length > 0 ? (
             <ul>
               {r.permissions.map((p) => (
@@ -89,7 +86,7 @@ export function UserDetails({ user, roles, source, onClose, onEdit, onDelete }: 
 
       <h3>Roles and their permissions</h3>
       {view.roles.length === 0 && <p className="muted">No roles.</p>}
-      {roleList(view.roles)}
+      {roleList}
       {settings.length > 0 && (
         <dl className="facts">
           {settings.map(([label, value]) => (
@@ -99,13 +96,6 @@ export function UserDetails({ user, roles, source, onClose, onEdit, onDelete }: 
             </div>
           ))}
         </dl>
-      )}
-
-      {view.custom.length > 0 && (
-        <>
-          <h3>Your organization&apos;s roles</h3>
-          {roleList(view.custom)}
-        </>
       )}
 
       <h3>Permissions given directly</h3>

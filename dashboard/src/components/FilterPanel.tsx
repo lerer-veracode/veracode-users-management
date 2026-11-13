@@ -107,12 +107,7 @@ export function FilterPanel({ filters, roles, onChange }: Props) {
           onChange={(e) => onChange({ ...filters, role: e.target.value })}
         >
           <option value="">Any role</option>
-          {shown.filter((r) => !r.custom).map(option)}
-          {shown.some((r) => r.custom) && (
-            <optgroup label="Your organization's roles">
-              {shown.filter((r) => r.custom).map(option)}
-            </optgroup>
-          )}
+          {shown.map(option)}
         </select>
       </FilterGroup>
       <FilterGroup title="Scan Types">

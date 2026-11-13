@@ -836,22 +836,11 @@ describe("users page", () => {
     expect(within(dialog).queryByText("Allowed scan types")).toBeNull();
     await user.keyboard("{Escape}");
 
-    // The organization's own roles, apart, with the roles they include.
-    dialog = await details("hbrooks@example.com");
-    expect(
-      within(dialog).getByRole("heading", { name: "Your organization's roles" }),
-    ).toBeVisible();
-    expect(within(dialog).getByText("ELearning Admin")).toBeInTheDocument();
-    expect(within(dialog).getByText("Includes: Reviewer")).toBeInTheDocument();
-    await user.keyboard("{Escape}");
     await user.clear(search);
 
     // Filters: the Role list has no scan types; Scan Types finds who may submit them.
     const roleFilter = screen.getByRole("combobox", { name: "Role" });
     expect(within(roleFilter).queryByRole("option", { name: "Any Scan" })).toBeNull();
-    expect(
-      within(roleFilter).getByRole("group", { name: "Your organization's roles" }),
-    ).toBeTruthy();
     await user.selectOptions(screen.getByRole("combobox", { name: "Scan type" }), "all");
     expect(screen.getByText("1-6 of 6")).toBeInTheDocument();
     await user.selectOptions(

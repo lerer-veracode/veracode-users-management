@@ -63,15 +63,11 @@ export const roleKind = (role: { role_name: string; is_scan_type?: boolean }): R
   return "plain";
 };
 
-// The organization's own roles: Veracode adds "custom-" to their names (docs/SPEC.md).
-export const isCustomRole = (r: { role_name: string }): boolean =>
-  r.role_name.toLowerCase().startsWith("custom-");
-
 // "No Team Restriction API", which the Platform shows as an API account's "Team Memberships: No
-// Team Restrictions". Found by its description until its role name is known (docs/REALITY.md,
-// entry 41).
-export const isNoTeamRestriction = (r: { role_description: string }): boolean =>
-  /\bno team restrictions?\b/i.test(r.role_description);
+// Team Restrictions". Its role name, `noteamrestrictionapi`, was confirmed on the real organization
+// (docs/REALITY.md, entry 41).
+export const isNoTeamRestriction = (r: { role_name: string }): boolean =>
+  r.role_name.toLowerCase() === "noteamrestrictionapi";
 
 export const isAdministratorRole = (r: { role_name: string; role_description: string }): boolean =>
   r.role_name.toLowerCase() === ADMIN_ROLE || r.role_description.toLowerCase() === "administrator";

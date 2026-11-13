@@ -51,9 +51,7 @@ export const ROLES: Role[] = [
   permissions: Array.isArray(permissions) ? permissions : [],
   assignable: is_api !== true && role_name !== "extadmin",
   kind: kindOf(String(role_name)),
-  custom: String(role_name).startsWith("custom-"),
   no_team_restriction: role_name === "noteamrestrictionapi",
-  child_roles: role_name === "custom-elearningadmin" ? ["extreviewer"] : [],
 }));
 
 const role = (name: string): RoleRef => {

@@ -29,10 +29,10 @@ export function UsersTable({
   onDelete,
 }: Props) {
   // Scan types and the API team setting aren't roles on the Platform (docs/PLAN_ROLES.md).
-  const roleNames = (u: User) => {
-    const view = roleView(u, roles);
-    return [...view.roles, ...view.custom].map((r) => r.role_description).join(", ");
-  };
+  const roleNames = (u: User) =>
+    roleView(u, roles)
+      .roles.map((r) => r.role_description)
+      .join(", ");
   return (
     <table>
       <thead>
