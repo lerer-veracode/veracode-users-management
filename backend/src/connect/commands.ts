@@ -2,6 +2,7 @@ import { auditedFetch, connectionRef, withAudit, type AuditLog } from "../audit/
 import { REGIONS, isRegion } from "../regions.js";
 import { checkAccess, listRoles } from "../veracode/identity.js";
 import { inspectApi, inspectUsers } from "./inspect.js";
+import { isCustomRole, isNoTeamRestriction } from "../veracode/rules.js";
 import {
   TokenCache,
   VeracodeError,
@@ -50,6 +51,7 @@ export const HELP = `Usage: npm run connect -- <command>
                        --email shows every user with that email address
   permissions [name]   List every permission the organization's roles carry, read only,
                        to choose which to hide in config/hidden-permissions.txt
+  roles [name]         List the organization's roles with how the app groups them, read only
   help                 Show this help
 
 Connections are removed ${MAX_AGE_DAYS} days after they are added. App users are removed
@@ -286,14 +288,50 @@ class Cli {
     );
   }
 
-  async permissions(session: Session, arg: string | undefined) {
+  private async readRoles(
+    session: Session,
+    arg: string | undefined,
+    reason: string,
+    purpose: string,
+  ) {
     const conn = arg
       ? session.data.connections.find((c) => c.name.toLowerCase() === arg.toLowerCase())
       : session.data.connections[0];
     if (!conn) throw new VaultError(arg ? `No connection named ${arg}.` : "No connections yet.");
-    const roles = await withAudit(
-      { connection: ref(conn), reason: "permissions", purpose: "List the permissions" },
-      () => listRoles(conn, new TokenCache(this.veracode), this.veracode),
+    const roles = await withAudit({ connection: ref(conn), reason, purpose }, () =>
+      listRoles(conn, new TokenCache(this.veracode), this.veracode),
+    );
+    return { conn, roles };
+  }
+
+  // Each role with what the app reads from it, to check how the Users page groups roles
+  // (docs/PLAN_ROLES.md, phase 2).
+  async roles(session: Session, arg: string | undefined) {
+    const { conn, roles } = await this.readRoles(session, arg, "roles", "List the roles");
+    this.say(`${roles.length} roles in ${conn.name} (${REGIONS[conn.region].label}), read only:`);
+    this.say("");
+    const sorted = [...roles].sort((a, b) => a.role_description.localeCompare(b.role_description));
+    for (const r of sorted) {
+      const marks = [
+        r.is_api && "API",
+        r.is_scan_type && "scan type",
+        r.ignore_team_restrictions && "all teams",
+        isCustomRole(r) && "custom",
+        isNoTeamRestriction(r) && "team setting",
+      ].filter(Boolean);
+      const includes = r.child_roles.length > 0 ? `  includes: ${r.child_roles.join(", ")}` : "";
+      this.say(
+        `${r.role_description}  (${r.role_name})${marks.length > 0 ? `  [${marks.join(", ")}]` : ""}${includes}`,
+      );
+    }
+  }
+
+  async permissions(session: Session, arg: string | undefined) {
+    const { conn, roles } = await this.readRoles(
+      session,
+      arg,
+      "permissions",
+      "List the permissions",
     );
     const all = new Map<string, string>();
     for (const r of roles) {
@@ -372,6 +410,7 @@ const COMMANDS = [
   "inspect",
   "inspect-user",
   "permissions",
+  "roles",
 ];
 
 export const runConnect = async (args: string[], deps: Deps): Promise<number> => {
@@ -397,6 +436,7 @@ export const runConnect = async (args: string[], deps: Deps): Promise<number> =>
       if (command === "inspect") await cli.inspect(session, arg);
       if (command === "inspect-user") await cli.inspectUser(session, rest);
       if (command === "permissions") await cli.permissions(session, arg);
+      if (command === "roles") await cli.roles(session, arg);
     });
     return 0;
   } catch (e) {

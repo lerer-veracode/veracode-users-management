@@ -611,6 +611,16 @@ describe("changing users", () => {
       { role_name: "teamAdmin", role_description: "Team Admin" },
       { role_name: "extadmin", role_description: "Administrator" },
       { role_name: "uploadapi", role_description: "Upload API", is_api: true },
+      {
+        role_name: "noteamrestrictionapi",
+        role_description: "No Team Restriction API",
+        is_api: true,
+      },
+      {
+        role_name: "custom-elearningadmin",
+        role_description: "ELearning Admin",
+        child_roles: [{ role_name: "extreviewer" }],
+      },
     ];
     const teams = [
       { team_id: "t2", team_name: "Red" },
@@ -696,6 +706,16 @@ describe("changing users", () => {
       ["teamAdmin", true, "team_admin"],
       ["extadmin", false, "plain"],
       ["uploadapi", false, "plain"],
+      ["noteamrestrictionapi", false, "plain"],
+      ["custom-elearningadmin", true, "plain"],
+    ]);
+    // The organization's own roles, with the roles they include, and the role the Platform
+    // shows as an API account's team setting (docs/PLAN_ROLES.md, phase 2).
+    expect(roles.filter((r) => r.custom).map((r) => [r.role_name, r.child_roles])).toEqual([
+      ["custom-elearningadmin", ["extreviewer"]],
+    ]);
+    expect(roles.filter((r) => r.no_team_restriction).map((r) => r.role_name)).toEqual([
+      "noteamrestrictionapi",
     ]);
     const teams = (await (await get(app, "/api/teams", cookie)).json()).teams as Rec[];
     expect(teams).toEqual([

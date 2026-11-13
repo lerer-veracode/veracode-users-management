@@ -5,6 +5,7 @@ import { formatDateTime, fullName } from "./format";
 import { planImport } from "./importPlan";
 import { EMPTY_FILTERS, filterUsers, pageCount, pageOf, sortUsers } from "./users";
 import { daysLeft } from "./retention";
+import { includedRoles, roleView } from "./roles";
 
 describe("formatDateTime", () => {
   it("formats like the platform", () => {
@@ -68,13 +69,13 @@ describe("planImport", () => {
 
 describe("user list helpers", () => {
   it("filters by search, type, status and role", () => {
-    expect(filterUsers(USERS, EMPTY_FILTERS)).toHaveLength(USERS.length);
-    expect(filterUsers(USERS, { ...EMPTY_FILTERS, search: "PRIYA" })).toHaveLength(1);
-    const api = filterUsers(USERS, { ...EMPTY_FILTERS, types: ["API"] });
+    expect(filterUsers(USERS, EMPTY_FILTERS, ROLES)).toHaveLength(USERS.length);
+    expect(filterUsers(USERS, { ...EMPTY_FILTERS, search: "PRIYA" }, ROLES)).toHaveLength(1);
+    const api = filterUsers(USERS, { ...EMPTY_FILTERS, types: ["API"] }, ROLES);
     expect(api.every((u) => u.user_type === "API")).toBe(true);
-    const inactive = filterUsers(USERS, { ...EMPTY_FILTERS, status: "inactive" });
+    const inactive = filterUsers(USERS, { ...EMPTY_FILTERS, status: "inactive" }, ROLES);
     expect(inactive.every((u) => !u.active)).toBe(true);
-    const admins = filterUsers(USERS, { ...EMPTY_FILTERS, role: "adminapi" });
+    const admins = filterUsers(USERS, { ...EMPTY_FILTERS, role: "adminapi" }, ROLES);
     expect(admins.map((u) => u.user_name)).toEqual(["api_aautomation"]);
   });
   it("sorts both ways, with missing values first", () => {
@@ -82,6 +83,19 @@ describe("user list helpers", () => {
     const desc = sortUsers(USERS, { key: "user_name", dir: "desc" });
     expect(asc[0]?.user_name).toBe(desc[desc.length - 1]?.user_name);
     expect(sortUsers(USERS, { key: "last_login", dir: "asc" })[0]?.last_login).toBeNull();
+  });
+  it("filters by scan type: All, or a type the user may submit", () => {
+    const names = (scanType: string) =>
+      filterUsers(USERS, { ...EMPTY_FILTERS, scanType }, ROLES).map((u) => u.user_name);
+    const all = names("all");
+    expect(all).toContain("dcohen@example.com");
+    expect(all).not.toContain("kmensah@example.com");
+    // Kofi has Static and Container; users with All may submit every type.
+    expect(names("extsubmitstaticscan")).toEqual(
+      expect.arrayContaining(["kmensah@example.com", ...all]),
+    );
+    expect(names("extsubmitstaticscan")).toHaveLength(all.length + 1);
+    expect(names("extsubmitdynamicscan")).toEqual(all);
   });
   it("pages", () => {
     expect(pageOf([1, 2, 3, 4, 5], 2, 2)).toEqual([3, 4]);
@@ -95,5 +109,45 @@ describe("daysLeft", () => {
     const now = new Date("2026-11-09T12:00:00Z");
     expect(daysLeft("2026-11-10T13:00:00Z", now)).toBe(2);
     expect(daysLeft("2026-11-01T00:00:00Z", now)).toBe(0);
+  });
+});
+
+describe("roleView", () => {
+  const user = (name: string) => {
+    const found = USERS.find((u) => u.user_name === name);
+    if (!found) throw new Error(name);
+    return found;
+  };
+  it("shows All scan types as a setting, not as the Any Scan role", () => {
+    const view = roleView(user("dcohen@example.com"), ROLES);
+    expect(view.roles.map((r) => r.role_name)).toEqual(["extseclead"]);
+    expect(view.scanTypes).toBe("All");
+    expect(view.teamMemberships).toBeNull();
+  });
+  it("names specific scan types, and None when there are none", () => {
+    const view = roleView(user("kmensah@example.com"), ROLES);
+    expect(view.roles.map((r) => r.role_name)).toEqual(["extsubmitter"]);
+    expect(view.scanTypes).toBe("Static Scan, Container Scan");
+    expect(roleView(user("mwebb@example.com"), ROLES).scanTypes).toBe("None");
+  });
+  it("shows No Team Restriction API as an API account's team memberships", () => {
+    const view = roleView(user("api_rreader"), ROLES);
+    expect(view.roles.map((r) => r.role_name)).toEqual(["resultsapi"]);
+    expect(view.teamMemberships).toBe("No team restrictions");
+    expect(view.scanTypes).toBeNull();
+    expect(roleView(user("api_cpipeline"), ROLES).teamMemberships).toBe(
+      "Restricted to selected teams",
+    );
+  });
+  it("lists the organization's own roles apart, with the roles they include", () => {
+    const view = roleView(user("hbrooks@example.com"), ROLES);
+    expect(view.roles.map((r) => r.role_name)).toEqual(["extreviewer"]);
+    expect(view.custom.map((r) => r.role_description)).toEqual(["ELearning Admin"]);
+    const [custom] = view.custom;
+    expect(custom && includedRoles(custom, ROLES)).toEqual(["Reviewer"]);
+  });
+  it("shows a role the organization's list doesn't have as a plain role", () => {
+    const u = { ...user("mwebb@example.com"), roles: [{ role_name: "x", role_description: "X" }] };
+    expect(roleView(u, ROLES).roles.map((r) => r.role_description)).toEqual(["X"]);
   });
 });

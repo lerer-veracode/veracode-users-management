@@ -30,7 +30,10 @@ const USERS: FakeUser[] = [
     active: true,
     login_enabled: true,
     last_login: "2026-11-01T10:00:00Z",
-    roles: [{ role_name: "extseclead", role_description: "Security Lead" }],
+    roles: [
+      { role_name: "extseclead", role_description: "Security Lead" },
+      { role_name: "extsubmitanyscan", role_description: "Any Scan" },
+    ],
     teams: [{ team_id: "t1", team_name: "Blue Team", relationship: relationship("MEMBER") }],
   },
   {
@@ -41,7 +44,10 @@ const USERS: FakeUser[] = [
     email_address: "ci@example.com",
     api_user: true,
     active: true,
-    roles: [{ role_name: "uploadapi", role_description: "Upload API" }],
+    roles: [
+      { role_name: "uploadapi", role_description: "Upload API" },
+      { role_name: "noteamrestrictionapi", role_description: "No Team Restriction API" },
+    ],
     permissions: [{ permission_name: "apiUser", permission_description: "API user" }],
   },
   {
@@ -74,6 +80,12 @@ const ROLES = [
   { role_name: "extcreator", role_description: "Creator" },
   { role_name: "extadmin", role_description: "Administrator" },
   { role_name: "uploadapi", role_description: "Upload API", is_api: true },
+  {
+    role_name: "noteamrestrictionapi",
+    role_description: "No Team Restriction API",
+    is_api: true,
+    ignore_team_restrictions: true,
+  },
 ];
 
 const TEAMS = [

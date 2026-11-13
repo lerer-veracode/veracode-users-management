@@ -19,7 +19,7 @@ Success criteria:
 - [x] Backend test: with the file holding `VSA` and `Manage Vendor Contact Requests`, the roles and users sent leave out "Manage VSA" and "Manage Vendor Contact Requests", keep a permission whose name only contains the letters `vsa` inside a word, and still tell an API user by its `apiUser` permission.
 - [x] Backend test: no file, an empty file and a file of comments hide nothing.
 - [x] `npm run connect -- permissions`, with a stubbed `fetch`, prints each permission once, sorted, with no user data.
-- [ ] The administrator runs `npm run connect -- permissions` on the real organization (read only) and adds what else to hide.
+- [x] The administrator runs `npm run connect -- permissions` on the real organization (read only) and adds what else to hide. Done 2026-11-13: the starting four lines are enough for now.
 - [x] A user's details show no hidden permission (Playwright against the local stand-in, whose Security Lead role carries "Manage VSA rules"). No dashboard test: the dashboard shows what the backend sends, and never sees a hidden permission.
 
 ## Phase 2: roles shown as the Platform shows them
@@ -27,15 +27,15 @@ Success criteria:
 - **Users table, Roles column:** the roles without the scan types and without "No Team Restriction API".
 - **A user's details:** "Roles and their permissions" lists the roles the same way; under it, "Allowed scan types: All" or the selected types by name (for example "Static Scan, Container Scan"), or "None" for a user whose roles need none; for an API account, "Team memberships: No team restrictions" or "Restricted to selected teams". The organization's custom roles are listed apart, under "Your organization's roles", as on the Platform.
 - **Filters:** the Roles filter offers the same roles, plus a Scan types filter (All, or each type).
-- A role counts as a scan type as it does now (`roleKind` in `backend/src/veracode/rules.ts`). "No Team Restriction API" is found by its description, until its role name is known (entry 41). A custom role is one Veracode marks as such, or, if it doesn't, one whose name starts `custom-` (`docs/SPEC.md`); `npm run connect -- inspect` settles which, read only.
+- A role counts as a scan type as it does now (`roleKind` in `backend/src/veracode/rules.ts`). "No Team Restriction API" is found by its description, until its role name is known (entry 41). A custom role is one whose name starts `custom-` (`docs/SPEC.md`); Veracode's roles carry no custom flag (spec 1.5). A role's `child_roles` are the roles it includes, shown as "Includes: ..." (the Platform nests them). `npm run connect -- roles` lists each role with how the app groups it (API, scan type, all teams, custom, team setting) and what it includes, read only (one `GET /v2/roles`), to check this against the real organization.
 
 Success criteria:
 
-- [ ] Dashboard tests: a user with Any Scan shows "Allowed scan types: All" and no "Any Scan" role, in the table and in the details; a user with Static and Container shows "Static Scan, Container Scan"; an API account with No Team Restriction API shows "No team restrictions" and not the role.
-- [ ] Dashboard test: filtering by a scan type, and by All, finds the right users.
-- [ ] Custom roles show under "Your organization's roles" (dashboard test with a sample custom role).
-- [ ] Playwright against the local stand-in: the Users page and a user's details show scan types and team restrictions as above.
-- [ ] `npm run check` passes.
+- [x] Dashboard tests: a user with Any Scan shows "Allowed scan types: All" and no "Any Scan" role, in the table and in the details; a user with Static and Container shows "Static Scan, Container Scan"; an API account with No Team Restriction API shows "No team restrictions" and not the role.
+- [x] Dashboard test: filtering by a scan type, and by All, finds the right users. A scan type finds the users who may submit it: those given that type, and those given All.
+- [x] Custom roles show under "Your organization's roles" (dashboard test with a sample custom role), with the roles they include.
+- [x] Playwright against the local stand-in: the Users page and a user's details show scan types and team restrictions as above.
+- [x] `npm run check` passes.
 
 ## Phase 3: compare with the Platform (administrator, read only)
 

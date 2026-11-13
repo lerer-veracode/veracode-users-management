@@ -49,7 +49,7 @@ export function UsersPage({ state, reload, refreshTeams, picker, onUnauthorized 
 
   const users = state.status === "ready" ? state.users : [];
   const roles = state.status === "ready" ? state.roles : [];
-  const visible = sortUsers(filterUsers(users, filters), sort);
+  const visible = sortUsers(filterUsers(users, filters, roles), sort);
 
   const changeFilters = (f: UserFilters) => {
     setFilters(f);
@@ -202,6 +202,7 @@ export function UsersPage({ state, reload, refreshTeams, picker, onUnauthorized 
             <>
               <UsersTable
                 users={pageOf(visible, page, size)}
+                roles={roles}
                 sort={sort}
                 onSort={changeSort}
                 onView={view}
