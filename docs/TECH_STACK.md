@@ -79,5 +79,5 @@ Every Veracode connection is removed 30 days after it is added. `MAX_AGE_DAYS = 
 
 - Testing: vitest (with Testing Library for the dashboard) and Playwright.
 - Quality: ESLint, Prettier and `tsc`.
-- Security: the Veracode CLI static scan in the pre-commit hook, and the Veracode package firewall for npm.
+- Security: the Veracode CLI static scan in the pre-push hook, and the Veracode package firewall for npm.
 - CSV: papaparse.

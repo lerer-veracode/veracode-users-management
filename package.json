@@ -18,9 +18,10 @@
     "e2e": "npm run e2e -w e2e",
     "check": "npm run format && npm run lint && npm run typecheck && npm run test && npm run e2e",
     "prepare": "node scripts/install-hooks.mjs",
-    "precommit": "node scripts/check-no-vault.mjs && npm run format && npm run lint && npm run typecheck && npm run test && npm run e2e && npm run scan",
+    "precommit": "node scripts/check-no-vault.mjs && npm run format && npm run lint && npm run typecheck && npm run test && npm run e2e",
     "connect": "tsx backend/src/connect/main.ts",
-    "scan": "node scripts/veracode-scan.mjs"
+    "scan": "node scripts/veracode-scan.mjs",
+    "prepush": "npm run scan -- --pre-push"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.0",
@@ -35,6 +36,7 @@
     "typescript-eslint": "^8.35.0"
   },
   "simple-git-hooks": {
-    "pre-commit": "npm run precommit"
+    "pre-commit": "npm run precommit",
+    "pre-push": "npm run prepush"
   }
 }
