@@ -801,6 +801,57 @@ describe("users page", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("shows scan types and API team restrictions as settings, as the Platform does", async () => {
+    const user = userEvent.setup();
+    await go("#/users");
+    await screen.findByText("1-10 of 23");
+    const search = screen.getByRole("textbox", { name: "Search users" });
+    const details = async (name: string) => {
+      await user.clear(search);
+      await user.type(search, name.slice(0, 6));
+      expect(screen.getByRole("row", { name: new RegExp(name) })).not.toHaveTextContent(
+        /Any Scan|Static Scan|No Team Restriction API/,
+      );
+      await user.click(screen.getByRole("button", { name }));
+      return screen.getByRole("dialog", { name });
+    };
+    const setting = (dialog: HTMLElement, label: string) =>
+      within(dialog).getByText(label).nextSibling;
+
+    // All scan types: a setting, not the "Any Scan" role, in the table and the details.
+    let dialog = await details("dcohen@example.com");
+    expect(setting(dialog, "Allowed scan types")).toHaveTextContent("All");
+    expect(within(dialog).queryByText("Any Scan")).toBeNull();
+    await user.keyboard("{Escape}");
+
+    dialog = await details("kmensah@example.com");
+    expect(setting(dialog, "Allowed scan types")).toHaveTextContent("Static Scan, Container Scan");
+    expect(within(dialog).getByText("Submitter")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+
+    // An API account: its team setting, and no scan types.
+    dialog = await details("api_rreader");
+    expect(setting(dialog, "Team memberships")).toHaveTextContent("No team restrictions");
+    expect(within(dialog).queryByText("No Team Restriction API")).toBeNull();
+    expect(within(dialog).queryByText("Allowed scan types")).toBeNull();
+    await user.keyboard("{Escape}");
+
+    await user.clear(search);
+
+    // Filters: the Role list has no scan types; Scan Types finds who may submit them.
+    const roleFilter = screen.getByRole("combobox", { name: "Role" });
+    expect(within(roleFilter).queryByRole("option", { name: "Any Scan" })).toBeNull();
+    await user.selectOptions(screen.getByRole("combobox", { name: "Scan type" }), "all");
+    expect(screen.getByText("1-6 of 6")).toBeInTheDocument();
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Scan type" }),
+      "extsubmitstaticscan",
+    );
+    expect(screen.getByText("1-7 of 7")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Scan Type=Static Scan/ }));
+    expect(screen.getByText("1-10 of 23")).toBeInTheDocument();
+  });
+
   it("explains a Veracode error and tries again", async () => {
     const user = userEvent.setup();
     backend.state.usersError = "The acme connection is not allowed to do this (403).";

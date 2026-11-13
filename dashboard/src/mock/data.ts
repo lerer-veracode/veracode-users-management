@@ -42,6 +42,8 @@ export const ROLES: Role[] = [
   ["adminapi", "Admin API", true, [perm("adminApi", "Access Admin API")]],
   ["resultsapi", "Results API", true, []],
   ["uploadapi", "Upload API", true, []],
+  ["noteamrestrictionapi", "No Team Restriction API", true, []],
+  ["custom-elearningadmin", "ELearning Admin", false, [perm("eLearning", "Manage eLearning")]],
 ].map(([role_name, role_description, is_api, permissions]) => ({
   role_name: String(role_name),
   role_description: String(role_description),
@@ -49,6 +51,7 @@ export const ROLES: Role[] = [
   permissions: Array.isArray(permissions) ? permissions : [],
   assignable: is_api !== true && role_name !== "extadmin",
   kind: kindOf(String(role_name)),
+  no_team_restriction: role_name === "noteamrestrictionapi",
 }));
 
 const role = (name: string): RoleRef => {
@@ -73,13 +76,19 @@ const PEOPLE: [string, string, UserType, string[], boolean][] = [
   ["Omar", "Haddad", "SAML", ["extcreator", "extreviewer"], true],
   ["Grace", "Liu", "UI", ["extexecutive"], true],
   ["Diego", "Alvarez", "SAML", ["extsubmitanyscan", "extreviewer"], true],
-  ["Hannah", "Brooks", "UI", ["extreviewer"], true],
-  ["Results", "Reader", "API", ["resultsapi"], true],
+  ["Hannah", "Brooks", "UI", ["extreviewer", "custom-elearningadmin"], true],
+  ["Results", "Reader", "API", ["resultsapi", "noteamrestrictionapi"], true],
   ["Ivan", "Novak", "SAML", ["extcreator"], false],
   ["Mei", "Tanaka", "UI", ["extseclead", "extcreator"], true],
   ["Samuel", "Osei", "SAML", ["extsubmitanyscan"], true],
   ["Rachel", "Green", "UI", ["extpolicyadmin"], true],
-  ["Kofi", "Mensah", "SAML", ["extreviewer"], true],
+  [
+    "Kofi",
+    "Mensah",
+    "SAML",
+    ["extsubmitter", "extsubmitstaticscan", "extsubmitcontainerscan"],
+    true,
+  ],
   ["Julia", "Santos", "UI", ["extcreator", "extsubmitanyscan"], true],
 ];
 

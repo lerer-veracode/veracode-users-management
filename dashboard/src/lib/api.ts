@@ -276,6 +276,7 @@ export const getRoles = async (fresh = false): Promise<{ source: Source; roles: 
       permissions: toPermissions(r.permissions),
       assignable: r.assignable === true,
       kind: ROLE_KINDS.find((k) => k === r.kind) ?? "plain",
+      no_team_restriction: r.no_team_restriction === true,
     })),
   };
 };

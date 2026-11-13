@@ -2,6 +2,7 @@ import { FilterGroup } from "./FilterGroup";
 import type { Role, UserType } from "../types";
 import type { UserFilters } from "../lib/users";
 import { EMPTY_FILTERS } from "../lib/users";
+import { isScanType, isShownAsRole } from "../lib/roles";
 import { Icon } from "./Icon";
 
 const TYPES: UserType[] = ["UI", "API", "SAML"];
@@ -13,7 +14,7 @@ const STATUSES = [
 
 type Props = { filters: UserFilters; roles: Role[]; onChange: (f: UserFilters) => void };
 
-const chipsFor = (f: UserFilters, set: (f: UserFilters) => void) => [
+const chipsFor = (f: UserFilters, roles: Role[], set: (f: UserFilters) => void) => [
   ...(f.search ? [{ label: `Search=${f.search}`, clear: () => set({ ...f, search: "" }) }] : []),
   ...f.types.map((t) => ({
     label: `User Type=${t}`,
@@ -23,10 +24,24 @@ const chipsFor = (f: UserFilters, set: (f: UserFilters) => void) => [
     ? [{ label: `Status=${f.status}`, clear: () => set({ ...f, status: "all" as const }) }]
     : []),
   ...(f.role ? [{ label: `Role=${f.role}`, clear: () => set({ ...f, role: "" }) }] : []),
+  ...(f.scanType
+    ? [
+        {
+          label: `Scan Type=${f.scanType === "all" ? "All" : (roles.find((r) => r.role_name === f.scanType)?.role_description ?? f.scanType)}`,
+          clear: () => set({ ...f, scanType: "" }),
+        },
+      ]
+    : []),
 ];
 
 export function FilterPanel({ filters, roles, onChange }: Props) {
-  const chips = chipsFor(filters, onChange);
+  const chips = chipsFor(filters, roles, onChange);
+  const shown = roles.filter(isShownAsRole);
+  const option = (r: Role) => (
+    <option key={r.role_name} value={r.role_name}>
+      {r.role_description}
+    </option>
+  );
   return (
     <aside className="panel" aria-label="Filters">
       <div className="filters-head">
@@ -92,11 +107,19 @@ export function FilterPanel({ filters, roles, onChange }: Props) {
           onChange={(e) => onChange({ ...filters, role: e.target.value })}
         >
           <option value="">Any role</option>
-          {roles.map((r) => (
-            <option key={r.role_name} value={r.role_name}>
-              {r.role_description}
-            </option>
-          ))}
+          {shown.map(option)}
+        </select>
+      </FilterGroup>
+      <FilterGroup title="Scan Types">
+        <select
+          className="input"
+          aria-label="Scan type"
+          value={filters.scanType}
+          onChange={(e) => onChange({ ...filters, scanType: e.target.value })}
+        >
+          <option value="">Any scan type</option>
+          <option value="all">All scan types</option>
+          {roles.filter((r) => isScanType(r) && r.kind !== "any_scan").map(option)}
         </select>
       </FilterGroup>
     </aside>

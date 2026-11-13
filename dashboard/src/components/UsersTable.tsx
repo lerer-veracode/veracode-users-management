@@ -1,6 +1,7 @@
-import type { User } from "../types";
+import type { Role, User } from "../types";
 import type { Sort, SortKey } from "../lib/users";
 import { formatDateTime, fullName } from "../lib/format";
+import { roleView } from "../lib/roles";
 import { Icon } from "./Icon";
 import { Menu } from "./Menu";
 import { SortHeader } from "./SortHeader";
@@ -8,6 +9,7 @@ import { StatusPill } from "./StatusPill";
 
 type Props = {
   users: User[];
+  roles: Role[];
   sort: Sort;
   onSort: (key: SortKey) => void;
   onView: (user: User) => void;
@@ -16,7 +18,21 @@ type Props = {
   onDelete: (user: User) => void;
 };
 
-export function UsersTable({ users, sort, onSort, onView, onEdit, onLogin, onDelete }: Props) {
+export function UsersTable({
+  users,
+  roles,
+  sort,
+  onSort,
+  onView,
+  onEdit,
+  onLogin,
+  onDelete,
+}: Props) {
+  // Scan types and the API team setting aren't roles on the Platform (docs/PLAN_ROLES.md).
+  const roleNames = (u: User) =>
+    roleView(u, roles)
+      .roles.map((r) => r.role_description)
+      .join(", ");
   return (
     <table>
       <thead>
@@ -49,7 +65,7 @@ export function UsersTable({ users, sort, onSort, onView, onEdit, onLogin, onDel
             <td>{fullName(u)}</td>
             <td>{u.email_address}</td>
             <td>{u.details_pending ? "…" : u.user_type}</td>
-            <td className="roles">{u.roles.map((r) => r.role_description).join(", ")}</td>
+            <td className="roles">{roleNames(u)}</td>
             <td className="nowrap">{u.details_pending ? "…" : formatDateTime(u.last_login)}</td>
             <td>
               <StatusPill tone={u.active ? "success" : "warning"}>

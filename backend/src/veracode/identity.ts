@@ -68,6 +68,8 @@ export type VeracodeRole = RoleRef & {
   role_id: string;
   is_api: boolean;
   is_scan_type: boolean;
+  // Whether the role works on every team, not only the user's own.
+  ignore_team_restrictions: boolean;
   permissions: Permission[];
 };
 
@@ -453,6 +455,7 @@ export const listRoles = async (
     role_description: str(r.role_description) || str(r.role_name),
     is_api: r.is_api === true,
     is_scan_type: r.is_scan_type === true,
+    ignore_team_restrictions: r.ignore_team_restrictions === true,
     permissions: records(r.permissions).map(toPermission),
   }));
 

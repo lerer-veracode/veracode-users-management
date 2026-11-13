@@ -55,9 +55,26 @@ test("users page shows the organization's users with roles and permissions", asy
   const dialog = page.getByRole("dialog", { name: "alice@example.com" });
   await expect(dialog.getByText("Security Lead")).toBeVisible();
   await expect(dialog.getByText("Manage applications")).toBeVisible();
+  // config/hidden-permissions.txt hides it.
+  await expect(dialog.getByText("Manage VSA rules")).toHaveCount(0);
   await expect(dialog.getByText("Blue Team")).toBeVisible();
+  // Scan types and an API account's team setting show as the Platform shows them, not as roles
+  // (docs/PLAN_ROLES.md, phase 2).
+  await expect(dialog.getByText("Allowed scan types").locator("+ dd")).toHaveText("All");
+  await expect(dialog.getByText("Any Scan")).toHaveCount(0);
   await page.mouse.click(5, 5);
   await expect(dialog).toBeHidden();
+  await expect(page.getByRole("row").filter({ hasText: "alice@example.com" })).not.toContainText(
+    "Any Scan",
+  );
+  await page.getByRole("button", { name: "api_ci", exact: true }).click();
+  const api = page.getByRole("dialog", { name: "api_ci" });
+  await expect(api.getByText("Team memberships").locator("+ dd")).toHaveText(
+    "No team restrictions",
+  );
+  await expect(api.getByText("No Team Restriction API")).toHaveCount(0);
+  await page.mouse.click(5, 5);
+  await expect(api).toBeHidden();
   await page.getByRole("link", { name: "Activity" }).click();
   await expect(page.getByText("user.list").first()).toBeVisible();
   await expect(page.getByText("role.list").first()).toBeVisible();

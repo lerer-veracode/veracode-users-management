@@ -1,4 +1,5 @@
 import { formatDateTime, fullName } from "../lib/format";
+import { roleView } from "../lib/roles";
 import type { Role, Source, User } from "../types";
 import { Dialog } from "./Dialog";
 import { StatusPill } from "./StatusPill";
@@ -13,9 +14,34 @@ type Props = {
 };
 
 export function UserDetails({ user, roles, source, onClose, onEdit, onDelete }: Props) {
-  const roleDetails = user.roles.map(
-    (r) =>
-      roles.find((x) => x.role_name === r.role_name) ?? { ...r, is_api: false, permissions: [] },
+  // As on the Platform: scan types and the API team setting aren't listed as roles
+  // (docs/PLAN_ROLES.md, phase 2).
+  const view = roleView(user, roles);
+  const settings: [string, string][] = [
+    ...(view.scanTypes === null
+      ? []
+      : [["Allowed scan types", view.scanTypes] as [string, string]]),
+    ...(view.teamMemberships === null
+      ? []
+      : [["Team memberships", view.teamMemberships] as [string, string]]),
+  ];
+  const roleList = (
+    <ul className="detail-list">
+      {view.roles.map((r) => (
+        <li key={r.role_name}>
+          <strong>{r.role_description}</strong> <span className="mono muted">{r.role_name}</span>
+          {r.permissions.length > 0 ? (
+            <ul>
+              {r.permissions.map((p) => (
+                <li key={p.permission_name}>{p.permission_description || p.permission_name}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="muted small">No permissions listed for this role.</p>
+          )}
+        </li>
+      ))}
+    </ul>
   );
   const facts: [string, string][] = [
     ["Connection", `${source.name} (${source.region})`],
@@ -59,23 +85,18 @@ export function UserDetails({ user, roles, source, onClose, onEdit, onDelete }: 
       </dl>
 
       <h3>Roles and their permissions</h3>
-      {roleDetails.length === 0 && <p className="muted">No roles.</p>}
-      <ul className="detail-list">
-        {roleDetails.map((r) => (
-          <li key={r.role_name}>
-            <strong>{r.role_description}</strong> <span className="mono muted">{r.role_name}</span>
-            {r.permissions.length > 0 ? (
-              <ul>
-                {r.permissions.map((p) => (
-                  <li key={p.permission_name}>{p.permission_description || p.permission_name}</li>
-                ))}
-              </ul>
-            ) : (
-              <p className="muted small">No permissions listed for this role.</p>
-            )}
-          </li>
-        ))}
-      </ul>
+      {view.roles.length === 0 && <p className="muted">No roles.</p>}
+      {roleList}
+      {settings.length > 0 && (
+        <dl className="facts">
+          {settings.map(([label, value]) => (
+            <div key={label}>
+              <dt>{label}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
 
       <h3>Permissions given directly</h3>
       {user.permissions.length === 0 ? (

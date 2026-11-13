@@ -90,7 +90,7 @@ Success criteria:
 - [x] Reading users and roles appears in the audit log as `user.list` and `role.list` with the app user and organization.
 - [x] A 401 or 403 from Veracode shows "The <name> connection is not allowed to do this (403). It needs the Admin API role." in the dashboard; an unreachable Veracode and no connection in use are explained too.
 - [x] In the browser against the local stand-in: the users, filters, a user's roles, permissions and teams, and the import preview against the real users.
-- [ ] Run by hand against the real organization: the users list and their roles match the Veracode Platform.
+- [x] Run by hand against the real organization: the users list and their roles match the Veracode Platform. Done 2026-11-13, after `docs/PLAN_ROLES.md`.
 
 ## Phase 5b: change users
 

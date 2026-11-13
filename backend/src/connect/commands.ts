@@ -1,7 +1,8 @@
 import { auditedFetch, connectionRef, withAudit, type AuditLog } from "../audit/audit.js";
 import { REGIONS, isRegion } from "../regions.js";
-import { checkAccess } from "../veracode/identity.js";
+import { checkAccess, listRoles } from "../veracode/identity.js";
 import { inspectApi, inspectUsers } from "./inspect.js";
+import { isNoTeamRestriction } from "../veracode/rules.js";
 import {
   TokenCache,
   VeracodeError,
@@ -48,6 +49,9 @@ export const HELP = `Usage: npm run connect -- <command>
   inspect-user USER_NAME ... [--email ADDRESS] [--connection NAME]
                        Show users' full Veracode records (sign-in secrets hidden), read only.
                        --email shows every user with that email address
+  permissions [name]   List every permission the organization's roles carry, read only,
+                       to choose which to hide in config/hidden-permissions.txt
+  roles [name]         List the organization's roles with how the app groups them, read only
   help                 Show this help
 
 Connections are removed ${MAX_AGE_DAYS} days after they are added. App users are removed
@@ -284,6 +288,63 @@ class Cli {
     );
   }
 
+  private async readRoles(
+    session: Session,
+    arg: string | undefined,
+    reason: string,
+    purpose: string,
+  ) {
+    const conn = arg
+      ? session.data.connections.find((c) => c.name.toLowerCase() === arg.toLowerCase())
+      : session.data.connections[0];
+    if (!conn) throw new VaultError(arg ? `No connection named ${arg}.` : "No connections yet.");
+    const roles = await withAudit({ connection: ref(conn), reason, purpose }, () =>
+      listRoles(conn, new TokenCache(this.veracode), this.veracode),
+    );
+    return { conn, roles };
+  }
+
+  // Each role with what the app reads from it, to check how the Users page groups roles
+  // (docs/PLAN_ROLES.md, phase 2).
+  async roles(session: Session, arg: string | undefined) {
+    const { conn, roles } = await this.readRoles(session, arg, "roles", "List the roles");
+    this.say(`${roles.length} roles in ${conn.name} (${REGIONS[conn.region].label}), read only:`);
+    this.say("");
+    const sorted = [...roles].sort((a, b) => a.role_description.localeCompare(b.role_description));
+    for (const r of sorted) {
+      const marks = [
+        r.is_api && "API",
+        r.is_scan_type && "scan type",
+        r.ignore_team_restrictions && "all teams",
+        isNoTeamRestriction(r) && "team setting",
+      ].filter(Boolean);
+      this.say(
+        `${r.role_description}  (${r.role_name})${marks.length > 0 ? `  [${marks.join(", ")}]` : ""}`,
+      );
+    }
+  }
+
+  async permissions(session: Session, arg: string | undefined) {
+    const { conn, roles } = await this.readRoles(
+      session,
+      arg,
+      "permissions",
+      "List the permissions",
+    );
+    const all = new Map<string, string>();
+    for (const r of roles) {
+      for (const p of r.permissions) all.set(p.permission_name, p.permission_description);
+    }
+    const lines = [...all]
+      .map(([name, description]) => `${description}  (${name})`)
+      .sort((a, b) => a.localeCompare(b));
+    this.say(
+      `${lines.length} permissions in ${conn.name} (${REGIONS[conn.region].label}), read only:`,
+    );
+    this.say("");
+    for (const line of lines) this.say(line);
+  }
+
   async inspectUser(session: Session, args: string[]) {
     // Options take the next word: --connection <name>, --email <address> (repeatable).
     let connName: string | undefined;
@@ -338,7 +399,17 @@ class Cli {
   }
 }
 
-const COMMANDS = ["add", "list", "remove", "add-user", "remove-user", "inspect", "inspect-user"];
+const COMMANDS = [
+  "add",
+  "list",
+  "remove",
+  "add-user",
+  "remove-user",
+  "inspect",
+  "inspect-user",
+  "permissions",
+  "roles",
+];
 
 export const runConnect = async (args: string[], deps: Deps): Promise<number> => {
   const [command = "add", arg] = args;
@@ -362,6 +433,8 @@ export const runConnect = async (args: string[], deps: Deps): Promise<number> =>
       if (command === "remove-user") await cli.removeUser(session, arg);
       if (command === "inspect") await cli.inspect(session, arg);
       if (command === "inspect-user") await cli.inspectUser(session, rest);
+      if (command === "permissions") await cli.permissions(session, arg);
+      if (command === "roles") await cli.roles(session, arg);
     });
     return 0;
   } catch (e) {

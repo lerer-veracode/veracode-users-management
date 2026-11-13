@@ -22,6 +22,8 @@ export type Role = {
   // Whether this app may give the role: never Administrator or an API role.
   assignable: boolean;
   kind: RoleKind;
+  // "No Team Restriction API": shown as an API account's team setting, not as a role.
+  no_team_restriction: boolean;
 };
 
 export type RoleRef = Pick<Role, "role_name" | "role_description">;
