@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-The pre-commit hook runs a Veracode static scan when the Veracode CLI is installed and has HMAC API credentials (`veracode configure`, or `~/.veracode/credentials`). For the full chain of what runs when you commit, and where each step is defined, see "What happens when you commit" in `docs/PROCESS.md`.
+The pre-commit hook runs the checks and tests. The pre-push hook runs a Veracode static scan when the push changes code and the Veracode CLI is installed with HMAC API credentials (`veracode configure`, or `~/.veracode/credentials`). For the full chain, and where each step is defined, see "What happens when you commit and push" in `docs/PROCESS.md`.
 
 Then open http://localhost:5173. See `docs/STATUS.md` for what works today and `docs/` for the spec, stack and standards.
 

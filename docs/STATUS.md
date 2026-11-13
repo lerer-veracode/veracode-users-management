@@ -60,7 +60,7 @@ Open http://localhost:5173. `npm run check` runs every check; the first time, ru
 ## In place
 
 - The audit log (`.local/audit.log`, see `docs/TECH_STACK.md`): every user change with who made it, the user, and each field from and to; every Veracode call, connection test, sign-in, and connection or app user added, removed or expired, from both the backend and `npm run connect`. `POST /api/audit/page` serves it one page at a time.
-- The pre-commit hook refuses vault files (`scripts/check-no-vault.mjs`) and runs a Veracode static scan (`scripts/veracode-scan.mjs`). The latest scan passed with 2 Medium findings: CWE-312 in `backend/src/server.ts` and `backend/src/connect/main.ts`. CWE-918 (SSRF) in the dashboard's API client is fixed: every request goes to a fixed URL.
+- The pre-commit hook refuses vault files (`scripts/check-no-vault.mjs`) and runs the checks and tests. Since 2026-11-13 the Veracode static scan (`scripts/veracode-scan.mjs`) runs in the pre-push hook instead, and only when the push changes code. The latest scan passed with 2 Medium findings: CWE-312 in `backend/src/server.ts` and `backend/src/connect/main.ts`. CWE-918 (SSRF) in the dashboard's API client is fixed: every request goes to a fixed URL.
 - npm installs go through the Veracode package firewall on any machine, whatever the user's own npm settings (`.npmrc`, firewall URLs in `package-lock.json`; see "Packages" in `docs/PROCESS.md`).
 - Export to CSV.
 - The light theme (see `docs/BRAND.md`).

@@ -9,17 +9,17 @@
 - vitest for the backend and the dashboard, with 80% coverage
 - Playwright end-to-end tests
 
-A pre-commit hook (simple-git-hooks, installed by `npm install`) runs, in order: the vault guard (`scripts/check-no-vault.mjs`), format, lint, type and unit test checks, the Playwright end-to-end tests, then a Veracode static scan (`npm run scan`, `scripts/veracode-scan.mjs`).
+A pre-commit hook (simple-git-hooks, installed by `npm install`) runs, in order: the vault guard (`scripts/check-no-vault.mjs`), format, lint, type and unit test checks, and the Playwright end-to-end tests. A pre-push hook then runs a Veracode static scan (`npm run scan`, `scripts/veracode-scan.mjs`) once for everything pushed, and only when the pushed commits change code (since 2026-11-13, the administrator's choice: the scan waits on Veracode for minutes, so it no longer runs on every commit).
 
-The scan packages only the files git tracks (never the vault, `.env`, `node_modules` or coverage reports) with `veracode package`, then runs `veracode static scan` (Pipeline Scan) on the project artifact. It takes about a minute and a half. It blocks the commit on Very High or High findings and lists them; the full results are in `.veracode/results.json`. It skips, without blocking, when the Veracode CLI isn't installed, when the scan can't run (no credentials, no network), or when `SKIP_VERACODE_SCAN=1` is set. It uses HMAC API credentials from `VERACODE_API_KEY_ID` and `VERACODE_API_KEY_SECRET`, or from `~/.veracode/credentials`; the account needs a Static Analysis licence and a role that can scan (for example Upload and Scan API, or Submitter).
+The scan packages only the files git tracks (never the vault, `.env`, `node_modules` or coverage reports) with `veracode package`, then runs `veracode static scan` (Pipeline Scan) on the project artifact. It takes two to four minutes, mostly waiting on Veracode. It blocks the push on Very High or High findings and lists them; the full results are in `.veracode/results.json`. It skips, without blocking, when the Veracode CLI isn't installed, when the scan can't run (no credentials, no network), when the pushed commits change only files that aren't code (`.md`, `.txt`, `.csv`, images, PDFs), or when `SKIP_VERACODE_SCAN=1` is set. Run by hand, `npm run scan` always scans the files git tracks. It uses HMAC API credentials from `VERACODE_API_KEY_ID` and `VERACODE_API_KEY_SECRET`, or from `~/.veracode/credentials`; the account needs a Static Analysis licence and a role that can scan (for example Upload and Scan API, or Submitter).
 
-## What happens when you commit
+## What happens when you commit and push
 
-You don't start the checks yourself: `git commit` sets off a chain of four links, each pointing to the next. Here is the chain, so you can find where each step is defined.
+You don't start the checks yourself: `git commit` and `git push` each set off a chain of links, each pointing to the next. Here is the chain, so you can find where each step is defined.
 
-1. **Installing the project puts a hook into git.** `npm install` runs the `prepare` script in the root `package.json` (`"prepare": "node scripts/install-hooks.mjs"`), which runs simple-git-hooks. In an install without dev dependencies (the SRCCLR agent's `npm install --only production`, or a CI job) or in a copy without `.git`, it skips this and says why, rather than failing the install. simple-git-hooks reads the `"simple-git-hooks"` block in the same file and writes it into `.git/hooks/pre-commit`. Git runs that file before every commit.
-2. **The hook runs one command.** The block says `"pre-commit": "npm run precommit"`, so every `git commit` runs the `precommit` script first.
-3. **That script runs the checks in order.** `precommit` in the root `package.json` runs each step only if the one before it passed:
+1. **Installing the project puts a hook into git.** `npm install` runs the `prepare` script in the root `package.json` (`"prepare": "node scripts/install-hooks.mjs"`), which runs simple-git-hooks. In an install without dev dependencies (the SRCCLR agent's `npm install --only production`, or a CI job) or in a copy without `.git`, it skips this and says why, rather than failing the install. simple-git-hooks reads the `"simple-git-hooks"` block in the same file and writes it into `.git/hooks/pre-commit` and `.git/hooks/pre-push`. Git runs the first before every commit, and the second before every push.
+2. **Each hook runs one command.** The block says `"pre-commit": "npm run precommit"` and `"pre-push": "npm run prepush"`, so every `git commit` runs the `precommit` script first, and every `git push` the `prepush` script.
+3. **`precommit` runs the checks in order.** `precommit` in the root `package.json` runs each step only if the one before it passed:
 
    | Step | Command                           | What it checks                                                 |
    | ---- | --------------------------------- | -------------------------------------------------------------- |
@@ -29,24 +29,24 @@ You don't start the checks yourself: `git commit` sets off a chain of four links
    | 4    | `npm run typecheck`               | The types are right (TypeScript)                               |
    | 5    | `npm run test`                    | The unit tests pass, with 80% coverage                         |
    | 6    | `npm run e2e`                     | The app works end to end in a browser (Playwright)             |
-   | 7    | `npm run scan`                    | The Veracode static scan finds nothing Very High or High       |
 
-4. **The scan step runs a script.** `scan` in the root `package.json` is `node scripts/veracode-scan.mjs`. That script:
+4. **`prepush` runs the scan.** `prepush` is `npm run scan -- --pre-push`, and `scan` is `node scripts/veracode-scan.mjs`. With `--pre-push`, the script reads from git which refs are being pushed, lists the files their new commits change, and stops there if none is code. Otherwise it scans the push for Very High and High findings:
    - copies the files git tracks into `.veracode/src`;
    - packages them with `veracode package`;
    - scans the package with `veracode static scan` and saves the results in `.veracode/results.json`.
 
-If any step fails, git doesn't make the commit. Fix the problem and commit again.
+If a check fails, git doesn't make the commit; if the scan finds Very High or High flaws, git doesn't push. Fix the problem and commit or push again.
 
-The scan is the only step that can be skipped, and it skips itself without blocking the commit:
+The scan is the only step that can be skipped, and it skips itself without blocking the push:
 
 - when the Veracode CLI isn't installed;
 - when it can't run (no credentials, no network);
-- when `SKIP_VERACODE_SCAN=1` is set for that commit:
-  - in PowerShell: `$env:SKIP_VERACODE_SCAN = "1"; git commit -m "..."; Remove-Item Env:SKIP_VERACODE_SCAN`
-  - on a Mac: `SKIP_VERACODE_SCAN=1 git commit -m "..."`
+- when the push changes no code;
+- when `SKIP_VERACODE_SCAN=1` is set for that push:
+  - in PowerShell: `$env:SKIP_VERACODE_SCAN = "1"; git push; Remove-Item Env:SKIP_VERACODE_SCAN`
+  - on a Mac: `SKIP_VERACODE_SCAN=1 git push`
 
-If you change the `"simple-git-hooks"` block, run `npx simple-git-hooks` to write the new hook into git. A change to the `precommit` or `scan` scripts, or to `scripts/veracode-scan.mjs`, applies at the next commit without that.
+If you change the `"simple-git-hooks"` block, run `npx simple-git-hooks` to write the new hook into git. A change to the `precommit`, `prepush` or `scan` scripts, or to `scripts/veracode-scan.mjs`, applies at the next commit or push without that.
 
 ## Packages
 
@@ -68,7 +68,7 @@ When asked to implement a plan, build every phase in order without stopping. For
 2. Build it, with tests.
 3. Check every success criterion and fix whatever fails.
 4. Tick off its criteria in the plan and update `docs/STATUS.md`.
-5. Commit and push to the phase's branch. The pre-commit hook runs the checks; if it fails, fix the problem and commit again.
+5. Commit to the phase's branch; the pre-commit hook runs the checks, so don't run `npm run check` yourself just before a commit. Push when the phase, or a piece worth reviewing, is ready, not after every small commit: the pre-push hook scans each push that changes code, and that takes minutes.
 
 When the last phase is done, run `npm run check` and report the results.
 
@@ -92,8 +92,8 @@ From 2026-11-10, each new phase is built on its own branch and reaches `main` th
 - In any testing on a real organization, create at most one user in total, and change or delete only that user. Never touch any other user.
 - Never print, log or commit a client secret or token.
 - Outside a plan, commit each change once you have checked it, if it has substance (see "Branches and pull requests"). Work on a new phase never goes straight to `main`.
-- Run `npm run check` before you hand work over.
-- Never use `git commit --no-verify`. To skip only the Veracode scan for one commit, set `SKIP_VERACODE_SCAN=1`, and say so.
+- Run `npm run check` before you hand over work that hasn't been committed; a commit runs the same checks, so don't run both.
+- Never use `git commit --no-verify` or `git push --no-verify`. To skip only the Veracode scan for one push, set `SKIP_VERACODE_SCAN=1`, and say so.
 - Never add a package from outside the firewall, and never commit any npm credential other than the firewall's access key in `.npmrc`.
 - Never lower a threshold, turn off a rule or exclude a file to get a green run. If a rule looks wrong, stop and ask.
 - Keep `docs/STATUS.md` up to date.

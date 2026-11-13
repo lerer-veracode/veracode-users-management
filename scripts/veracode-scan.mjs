@@ -1,7 +1,8 @@
-// Veracode static scan (Pipeline Scan) of the files tracked by git, run by the pre-commit hook.
-// Skips, without blocking the commit, when the Veracode CLI isn't installed, when
-// SKIP_VERACODE_SCAN=1, or when the scan can't run (no credentials, no network).
-// Blocks the commit when it finds Very High or High flaws.
+// Veracode static scan (Pipeline Scan) of the files tracked by git, run by the pre-push hook.
+// Skips, without blocking the push, when the Veracode CLI isn't installed, when
+// SKIP_VERACODE_SCAN=1, when the scan can't run (no credentials, no network), or when the push
+// changes no code.
+// Blocks the push when it finds Very High or High flaws.
 import { spawnSync } from "node:child_process";
 import {
   copyFileSync,
@@ -26,6 +27,38 @@ const say = (line) => console.log(`[veracode] ${line}`);
 if (process.env.SKIP_VERACODE_SCAN === "1") {
   say("Skipped: SKIP_VERACODE_SCAN=1.");
   process.exit(0);
+}
+
+// Files that aren't code: a push that changes only these isn't scanned.
+const NOT_CODE = /\.(md|txt|csv|png|jpe?g|gif|svg|webp|ico|pdf)$/i;
+const ZERO = /^0+$/;
+
+// As the pre-push hook (`--pre-push`), git gives one line per ref pushed on stdin:
+// "<local ref> <local sha> <remote ref> <remote sha>". These are the files the pushed commits
+// change; a new branch counts the commits no remote branch has yet.
+const pushedFiles = () => {
+  const files = new Set();
+  for (const line of readFileSync(0, "utf8").split(/\r?\n/)) {
+    const [, local, , remote] = line.trim().split(/\s+/);
+    if (!local || ZERO.test(local)) continue; // a branch being deleted
+    const range =
+      !remote || ZERO.test(remote) ? [local, "--not", "--remotes"] : [`${remote}..${local}`];
+    const log = spawnSync("git", ["log", "--name-only", "--format=", ...range], {
+      encoding: "utf8",
+    });
+    // If git can't list them, scan to be safe.
+    if (log.status !== 0) return ["(unknown)"];
+    for (const f of log.stdout.split(/\r?\n/)) if (f.trim()) files.add(f.trim());
+  }
+  return [...files];
+};
+
+if (process.argv.includes("--pre-push")) {
+  const code = pushedFiles().filter((f) => !NOT_CODE.test(f));
+  if (code.length === 0) {
+    say("Skipped: the push changes no code (only documents, text or images).");
+    process.exit(0);
+  }
 }
 
 const cli = spawnSync("veracode", ["version"], { encoding: "utf8" });
@@ -90,7 +123,7 @@ const zips = existsSync(PACKAGE)
       .sort((a, b) => statSync(b).size - statSync(a).size)
   : [];
 if (pack.status !== 0 || zips.length === 0) {
-  say(`Skipped: packaging failed (exit ${pack.status}). Commit not blocked.`);
+  say(`Skipped: packaging failed (exit ${pack.status}). Push not blocked.`);
   console.log(pack.stdout.split("\n").slice(-5).join("\n"));
   process.exit(0);
 }
@@ -119,10 +152,10 @@ if (scan.status === 0) {
   process.exit(0);
 }
 if (scan.status === 3) {
-  say(`Failed: findings at ${FAIL_ON}. The commit is blocked. Details: ${RESULTS}`);
+  say(`Failed: findings at ${FAIL_ON}. The push is blocked. Details: ${RESULTS}`);
   for (const f of findings.filter((x) => x.severity >= 4)) console.log(describe(f));
   process.exit(1);
 }
-say(`Skipped: the scan could not run (exit ${scan.status}). Commit not blocked.`);
+say(`Skipped: the scan could not run (exit ${scan.status}). Push not blocked.`);
 console.log(`${scan.stdout}\n${scan.stderr}`.trim().split("\n").slice(-4).join("\n"));
 process.exit(0);
