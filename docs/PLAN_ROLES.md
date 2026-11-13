@@ -40,9 +40,9 @@ Success criteria:
 
 Success criteria:
 
-- [ ] The Users page and a few users' details match the Platform, role for role, including scan types and team restrictions. This also ticks off `docs/PLAN_API.md` phase 5a's hand check.
-- [ ] No hidden permission shows; anything else that should be hidden is added to `config/hidden-permissions.txt`.
-- [ ] `docs/REALITY.md` entry 41 and `docs/STATUS.md` record what was seen.
+- [x] The Users page and a few users' details match the Platform, role for role, including scan types and team restrictions. Done 2026-11-13. This also ticks off `docs/PLAN_API.md` phase 5a's hand check.
+- [x] No hidden permission shows; anything else that should be hidden is added to `config/hidden-permissions.txt`. Nothing more to hide (2026-11-13).
+- [x] `docs/REALITY.md` entry 41 and `docs/STATUS.md` record what was seen.
 
 ## Later, after the CSV import: the organization's own roles
 
