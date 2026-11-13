@@ -17,7 +17,7 @@ The scan packages only the files git tracks (never the vault, `.env`, `node_modu
 
 You don't start the checks yourself: `git commit` sets off a chain of four links, each pointing to the next. Here is the chain, so you can find where each step is defined.
 
-1. **Installing the project puts a hook into git.** `npm install` runs the `prepare` script in the root `package.json` (`"prepare": "simple-git-hooks"`). That reads the `"simple-git-hooks"` block in the same file and writes it into `.git/hooks/pre-commit`. Git runs that file before every commit.
+1. **Installing the project puts a hook into git.** `npm install` runs the `prepare` script in the root `package.json` (`"prepare": "node scripts/install-hooks.mjs"`), which runs simple-git-hooks. In an install without dev dependencies (the SRCCLR agent's `npm install --only production`, or a CI job) or in a copy without `.git`, it skips this and says why, rather than failing the install. simple-git-hooks reads the `"simple-git-hooks"` block in the same file and writes it into `.git/hooks/pre-commit`. Git runs that file before every commit.
 2. **The hook runs one command.** The block says `"pre-commit": "npm run precommit"`, so every `git commit` runs the `precommit` script first.
 3. **That script runs the checks in order.** `precommit` in the root `package.json` runs each step only if the one before it passed:
 
@@ -50,7 +50,7 @@ If you change the `"simple-git-hooks"` block, run `npx simple-git-hooks` to writ
 
 ## Packages
 
-Packages come through the Veracode package firewall. The project's `.npmrc` sets the firewall registry, with its access key in the URL, and `replace-registry-host=never`, and every `resolved` URL in `package-lock.json` points at the firewall. The access key is committed on purpose: it isn't a secret, and it puts everyone who installs the project behind the firewall. The pre-commit guard allows that one line and still refuses any other npm credential. The firewall is set to warn, not block, for now. A package the firewall blocks fails the install with "Blocked by package firewall"; packages it hasn't checked yet can be blocked at first and allowed minutes later.
+Packages come through the Veracode package firewall, on every machine and in CI, whatever the user's own npm settings. The project's `.npmrc` sets the firewall registry, its access key as `//npm.firewall.veracode.com/:_auth` (base64 of `-:KEY`), the firewall's other credential keys (`_authToken`, `username`, `_password`) empty so that no user or global npmrc can supply its own, and `replace-registry-host=never`; every `resolved` URL in `package-lock.json` points at the firewall. Don't put the key in the registry URL instead: npm uses it there for lookups but not for downloads (`docs/REALITY.md`, entry 19). The access key is committed on purpose: it isn't a secret, and it puts everyone who installs the project behind the firewall. Nothing in a user's `~/.npmrc` is needed. Environment variables and command-line flags (`npm_config_*`, `--registry`) still beat the project's `.npmrc`, so CI must not set them, and installs with `npm ci`. The pre-commit guard allows the firewall key and the empty keys, and refuses any other npm credential. The firewall is set to warn, not block, for now. A package the firewall blocks fails the install with "Blocked by package firewall"; packages it hasn't checked yet can be blocked at first and allowed minutes later.
 
 ## Planning
 
@@ -82,7 +82,7 @@ From 2026-11-10, each new phase is built on its own branch and reaches `main` th
 4. **Finish a phase.** When the administrator confirms the phase (or an agreed sub-phase) is complete, mark the pull request ready for review. It must pass every check in the CI/CD pipeline, if the repository has one, as well as `npm run check`. Fix any failure on the branch and push again.
 5. **Squash on merge.** Merge only after the administrator's go-ahead, and only by squash, so the phase lands on `main` as one commit. The squash message names the phase and sums up what it built. Then delete the branch, and update the local `main`.
 
-**Status on 2026-11-12:** the repository is on GitHub, https://github.com/lerer-veracode/veracode-users-management (private), with no CI/CD pipeline yet, so `npm run check` stands in for the CI checks. The local branches `history/*` hold the history from before 2026-11-12 and are never pushed. Without the GitHub CLI, pull requests are opened and merged on github.com, and a merge still needs the administrator's explicit instruction.
+**Status on 2026-11-12:** the repository is on GitHub, https://github.com/lerer-veracode/veracode-users-management (private), with no CI/CD pipeline yet, so `npm run check` stands in for the CI checks. The local branches `history/*` hold the history from before 2026-11-12 and are never pushed. Pull requests are opened and merged with the GitHub CLI (`gh`, from PowerShell on Windows) or on github.com; a merge always needs the administrator's explicit instruction.
 
 ## Rules
 

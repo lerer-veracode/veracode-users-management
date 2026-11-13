@@ -17,21 +17,33 @@ const looksLikeVault = (path) => {
 
 // A token in a registry URL (https://user:token@host) or an auth setting. The Veracode package
 // firewall's access key is the one exception: it isn't a secret, and committing it puts everyone
-// who installs this project behind the firewall.
-const CREDENTIAL = /:\/\/[^/\s@]*:[^/\s@]+@|_auth|_authToken|_password/;
+// who installs this project behind the firewall. It is allowed as the firewall's `_auth` (base64 of
+// "-:KEY") or in the firewall registry URL. Empty credential keys for the firewall host are allowed
+// too: they carry nothing, and they stop a user's own npmrc from overriding the key.
+const CREDENTIAL = /:\/\/[^/\s@]*:[^/\s@]+@|_auth|_authToken|_password|:username=/;
 const FIREWALL_REGISTRY = /^registry=https:\/\/-:[^/\s@]+@npm\.firewall\.veracode\.com\/$/;
+const FIREWALL_AUTH = /^\/\/npm\.firewall\.veracode\.com\/:_auth=([A-Za-z0-9+/]+={0,2})$/;
+const EMPTY_FIREWALL_KEY =
+  /^\/\/npm\.firewall\.veracode\.com\/:(_auth|_authToken|username|_password)=\s*$/;
+const isFirewallKey = (line) => {
+  const match = FIREWALL_AUTH.exec(line);
+  return match !== null && /^-:[A-Za-z0-9_]+$/.test(Buffer.from(match[1], "base64").toString());
+};
+const allowed = (line) =>
+  FIREWALL_REGISTRY.test(line) || isFirewallKey(line) || EMPTY_FIREWALL_KEY.test(line);
 const carriesCredentials = (path) =>
   /(^|\/)\.npmrc$/.test(path) &&
   readFileSync(path, "utf8")
     .split(/\r?\n/)
-    .some((line) => CREDENTIAL.test(line) && !FIREWALL_REGISTRY.test(line.trim()));
+    .map((line) => line.trim())
+    .some((line) => CREDENTIAL.test(line) && !allowed(line));
 
 const vaults = staged.filter(looksLikeVault);
 const secrets = staged.filter(carriesCredentials);
 if (vaults.length > 0) console.error(`Refusing to commit vault files:\n  ${vaults.join("\n  ")}`);
 if (secrets.length > 0) {
   console.error(
-    `Refusing to commit npm credentials:\n  ${secrets.join("\n  ")}\nOnly the Veracode package firewall registry URL may carry a token.`,
+    `Refusing to commit npm credentials:\n  ${secrets.join("\n  ")}\nOnly the Veracode package firewall registry URL may carry a token; its other credential keys must be empty.`,
   );
 }
 if (vaults.length > 0 || secrets.length > 0) process.exit(1);
