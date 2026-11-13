@@ -80,6 +80,9 @@ for (const file of tracked) {
 
 say("Packaging...");
 const pack = run(["package", "--source", SOURCE, "--output", PACKAGE, "--trust"]);
+// The copy (with the node_modules packaging installs into it) isn't needed after packaging. Left
+// behind, an SCA scan of the project folder would scan it as well (docs/REALITY.md, entry 42).
+rmSync(SOURCE, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
 const zips = existsSync(PACKAGE)
   ? readdirSync(PACKAGE)
       .filter((f) => f.endsWith(".zip"))
