@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
 import { E2E_PASSWORD, E2E_USER } from "../settings.js";
 
@@ -55,8 +56,9 @@ test("users page shows the organization's users with roles and permissions", asy
   const dialog = page.getByRole("dialog", { name: "alice@example.com" });
   await expect(dialog.getByText("Security Lead")).toBeVisible();
   await expect(dialog.getByText("Manage applications")).toBeVisible();
-  // config/hidden-permissions.txt hides it.
+  // config/hidden-permissions.txt and config/hidden-roles.txt hide them.
   await expect(dialog.getByText("Manage VSA rules")).toHaveCount(0);
+  await expect(dialog.getByText(/Greenlight/)).toHaveCount(0);
   await expect(dialog.getByText("Blue Team")).toBeVisible();
   // Scan types and an API account's team setting show as the Platform shows them, not as roles
   // (docs/PLAN_ROLES.md, phase 2).
@@ -66,6 +68,9 @@ test("users page shows the organization's users with roles and permissions", asy
   await expect(dialog).toBeHidden();
   await expect(page.getByRole("row").filter({ hasText: "alice@example.com" })).not.toContainText(
     "Any Scan",
+  );
+  await expect(page.getByRole("row").filter({ hasText: "alice@example.com" })).not.toContainText(
+    "Greenlight",
   );
   await page.getByRole("button", { name: "api_ci", exact: true }).click();
   const api = page.getByRole("dialog", { name: "api_ci" });
@@ -188,11 +193,64 @@ test("adds, edits and deletes a user, and never touches an administrator", async
   await expect(log.getByText("Manages teams: — → Blue Team").first()).toBeVisible();
 });
 
-test("import page previews the sample CSV against the real users", async ({ page }) => {
+test("imports the sample CSV: previews it, creates the good rows, reports each", async ({
+  page,
+}) => {
   await signIn(page, "/#/import");
   await page.getByLabel("CSV file").setInputFiles("../data/sample_users.csv");
-  await expect(page.getByText("2 to create")).toBeVisible();
-  await expect(page.getByText("1 to update")).toBeVisible();
-  await expect(page.getByText("1 with errors")).toBeVisible();
-  await expect(page.getByRole("button", { name: /Apply/ })).toBeDisabled();
+  await expect(page.getByText("4 to create")).toBeVisible();
+  await expect(page.getByText("1 without some roles")).toBeVisible();
+  await expect(page.getByText("3 with errors")).toBeVisible();
+  await expect(page.getByRole("note", { name: "Roles left out" })).toContainText(
+    "tadmin: Team Admin",
+  );
+  await expect(
+    page.getByText("jdoe@example.com is already the user name of Jane Doe, jdoe@example.com"),
+  ).toBeVisible();
+  await expect(page.getByText(/No role left: Submitter needs a team/)).toBeVisible();
+  await expect(page.getByText("Email address is required")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Create 4 Users" })).toBeEnabled();
+  await expect(page.getByRole("region", { name: "Chosen file" })).toContainText(
+    "File: sample_users.csv · 7 rows",
+  );
+  await page.getByRole("button", { name: "Show instructions" }).click();
+  const roles = page.getByRole("list", { name: "Roles for the CSV" });
+  await expect(roles).toContainText("Reviewer");
+  await expect(roles).not.toContainText("Greenlight");
+
+  // Create the four good rows, after a confirmation.
+  await page.getByRole("button", { name: "Create 4 Users" }).click();
+  const dialog = page.getByRole("dialog", { name: "Create 4 users" });
+  await expect(dialog).toContainText("with login enabled and MFA required");
+  await dialog.getByRole("button", { name: "Create 4 users" }).click();
+  const result = page.getByRole("status", { name: "Import result" });
+  await expect(result).toContainText("4 created");
+  await expect(result).toContainText("0 failed");
+  await expect(result).toContainText("3 skipped");
+  await expect(page.getByRole("note", { name: "Roles to give by hand" })).toContainText(
+    "tadmin: Team Admin",
+  );
+
+  // They're on the Users page, and each create is in the Activity log.
+  await page.getByRole("link", { name: "Users" }).click();
+  await page.getByRole("textbox", { name: "Search users" }).fill("mlopez");
+  await expect(page.getByRole("row").filter({ hasText: "mlopez@example.com" })).toContainText(
+    "Security Lead, Creator",
+  );
+  // Export saves the users shown, in the import format.
+  await page.getByRole("button", { name: "Actions", exact: true }).click();
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("menuitem", { name: "Export to CSV" }).click(),
+  ]);
+  expect(download.suggestedFilename()).toMatch(/^users-[\w.-]+-\d{4}-\d{2}-\d{2}\.csv$/);
+  const path = await download.path();
+  const text = readFileSync(path, "utf8");
+  expect(text.split("\n").slice(0, 2)).toEqual([
+    "email_address,user_name,first_name,last_name,roles,scan_types",
+    "mlopez@example.com,mlopez,Maria,Lopez,Security Lead;Creator,Static Scan;Container Scan",
+  ]);
+  await page.getByRole("link", { name: "Activity" }).click();
+  await expect(page.getByText("import mlopez (line 4)").first()).toBeVisible();
+  await expect(page.getByText("import tadmin (line 5)").first()).toBeVisible();
 });

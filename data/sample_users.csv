@@ -1,5 +1,8 @@
-user_name,email_address,first_name,last_name,roles
-jdoe,jdoe@example.com,Jane,Doe,extseclead;extsubmitanyscan
-asmith,asmith@example.com,Alex,Smith,extreviewer
-mlopez,mlopez@example.com,Maria,Lopez,extseclead;extcreator
-,bad-row@example.com,No,Username,extreviewer
+email_address,user_name,first_name,last_name,roles,scan_types
+nlead@example.com,,Nadia,Lead,Security Lead,
+asmith@example.com,asmith,Alex,Smith,Reviewer,
+mlopez@example.com,mlopez,Maria,Lopez,Security Lead;Creator,Static;Container
+tadmin@example.com,tadmin,Tal,Admin,teamAdmin;Reviewer,
+jdoe@example.com,,Jane,Doe,Reviewer,
+csub@example.com,csub,Chris,Sub,Submitter,Static
+,noemail,No,Email,Reviewer,

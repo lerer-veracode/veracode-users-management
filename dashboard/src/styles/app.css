@@ -931,3 +931,47 @@ fieldset.field {
   margin: 0;
   padding: 8px 16px;
 }
+
+/* Import page: the format, the buttons, and the names a CSV can use */
+.csv-help {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 4px;
+}
+
+.file-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+}
+
+.drop-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.csv-names {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 40px;
+}
+
+.csv-names h3 {
+  margin: 0 0 6px;
+}
+
+.csv-names ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+/* A note on its own line inside a table cell. */
+.block {
+  display: block;
+}

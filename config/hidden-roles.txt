@@ -1,0 +1,8 @@
+# Roles the app doesn't show or give (for products the organization no longer has).
+# One role per line: its name on the Platform or its role name, ignoring case.
+# A user who has a hidden role keeps it in Veracode; the app just doesn't show it, and a
+# change to that user keeps it.
+# npm run connect -- roles lists the organization's roles.
+# Restart the backend (npm run dev) after a change.
+
+Greenlight IDE User

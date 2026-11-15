@@ -54,6 +54,7 @@ let audit: AuditLog;
 const setup = async (
   fetchFn: ReturnType<typeof veracode> = veracode(),
   hiddenPermissions?: string[],
+  hiddenRoles?: string[],
 ) => {
   let session = await createVault("yaakov", PASSWORD, START, CHEAP);
   session = await addUser(session, "dana", "dana long password", START, CHEAP);
@@ -76,6 +77,7 @@ const setup = async (
       sleeps.push(ms);
     },
     hiddenPermissions,
+    hiddenRoles,
   });
   return { app, sweep, fetchFn };
 };
@@ -600,7 +602,7 @@ describe("changing users", () => {
         roles: [{ role_name: "uploadapi", role_description: "Upload API", is_api: true }],
       },
     ];
-    const roles = [
+    const roles: Rec[] = [
       { role_name: "extseclead", role_description: "Security Lead" },
       { role_name: "extreviewer", role_description: "Reviewer" },
       { role_name: "extsubmitter", role_description: "Submitter" },
@@ -660,12 +662,12 @@ describe("changing users", () => {
       }
       return json(405, {});
     });
-    return { fetchFn, users, teams };
+    return { fetchFn, users, teams, roles };
   };
 
-  const ready = async () => {
+  const ready = async (hiddenRoles?: string[]) => {
     const stub = org();
-    const { app } = await setup(stub.fetchFn);
+    const { app } = await setup(stub.fetchFn, undefined, hiddenRoles);
     const { cookie } = await signIn(app);
     const list = (await (await get(app, "/api/connections", cookie)).json()) as {
       connections: { id: string }[];
@@ -718,6 +720,66 @@ describe("changing users", () => {
       { team_id: "t2", team_name: "Red" },
     ]);
     expect(users[0]?.teams).toEqual([{ team_id: "t1", team_name: "Blue", relationship: "MEMBER" }]);
+  });
+
+  it("hides the roles in config/hidden-roles.txt, and keeps them on a user it changes", async () => {
+    const { app, cookie, connection_id, fetchFn, users, roles } = await ready([
+      "Greenlight IDE User",
+    ]);
+    const greenlight = { role_name: "greenlightideuser", role_description: "Greenlight IDE User" };
+    roles.push(greenlight);
+    users[0] = {
+      ...users[0],
+      roles: [
+        { role_name: "extseclead", role_description: "Security Lead" },
+        { role_name: "extsubmitanyscan", role_description: "Any Scan" },
+        greenlight,
+      ],
+    };
+    const listed = (await (await get(app, "/api/roles", cookie)).json()).roles as Rec[];
+    expect(listed.map((r) => r.role_name)).not.toContain("greenlightideuser");
+    const details = await (await get(app, "/api/users/details", cookie)).text();
+    expect(details).not.toMatch(/greenlight/i);
+
+    // A change to the roles keeps the hidden role on the user, and the log doesn't mention it.
+    const res = await post(app, "/api/users/update", cookie, {
+      connection_id,
+      id: "u1",
+      changes: { roles: ["extseclead", "extsubmitanyscan", "extreviewer"] },
+    });
+    expect(res.status).toBe(200);
+    expect(await res.text()).not.toMatch(/greenlight/i);
+    const put = fetchFn.mock.calls.filter(([, i]) => i?.method === "PUT").at(-1);
+    expect((JSON.parse(String(put?.[1]?.body)) as Rec).roles).toEqual([
+      { role_name: "extseclead" },
+      { role_name: "extsubmitanyscan" },
+      { role_name: "extreviewer" },
+      { role_name: "greenlightideuser" },
+    ]);
+    expect((await audit.latest(10)).find((e) => e.action === "user.update")?.changes).toEqual([
+      { field: "Roles", from: "Security Lead", to: "Reviewer, Security Lead" },
+    ]);
+    // Sending the user's roles unchanged is no change.
+    const same = await post(app, "/api/users/update", cookie, {
+      connection_id,
+      id: "u1",
+      changes: { roles: ["extseclead", "extsubmitanyscan", "extreviewer"] },
+    });
+    expect(await same.json()).toEqual({ error: "Nothing to change." });
+
+    // It can't be given to anyone.
+    const create = await post(app, "/api/users/create", cookie, {
+      connection_id,
+      user: {
+        email_address: "n@x.com",
+        first_name: "N",
+        last_name: "P",
+        roles: ["extreviewer", "greenlightideuser"],
+      },
+    });
+    expect((await create.json()).error).toBe(
+      "greenlightideuser isn't a role in this organization.",
+    );
   });
 
   it("needs a scan type for Security Lead, Creator and Submitter, and teams for Team Admin", async () => {
@@ -827,6 +889,121 @@ describe("changing users", () => {
         { team_id: "t2", relationship: "MEMBER" },
       ],
     });
+  });
+
+  it("imports users from a CSV one by one, with MFA required, and a failure doesn't stop the rest", async () => {
+    const { app, cookie, connection_id, fetchFn, writes } = await ready();
+    const row = (line: number, user_name: string, roles: string[]) => ({
+      line,
+      user_name,
+      email_address: `${user_name}@x.com`,
+      first_name: "N",
+      last_name: "P",
+      roles,
+    });
+    const users = [
+      row(2, "anew", ["extseclead", "extsubmitanyscan"]),
+      // Veracode refuses it: jdoe exists, and the app's list isn't loaded yet.
+      { ...row(3, "jdoe", ["extreviewer"]), email_address: "other@x.com" },
+      row(4, "admin2", ["extadmin"]),
+      row(5, "creator", ["extcreator", "extsubmitanyscan"]),
+      row(6, "bnew", ["extreviewer"]),
+    ];
+    const res = await post(app, "/api/import", cookie, { connection_id, users });
+    expect(res.status).toBe(200);
+    expect((await res.json()).results).toEqual([
+      { line: 2, user_name: "anew", status: "created" },
+      {
+        line: 3,
+        user_name: "jdoe",
+        status: "failed",
+        error: "Creating the user failed (400): User already exists",
+      },
+      {
+        line: 4,
+        user_name: "admin2",
+        status: "failed",
+        error: "This app never gives the Administrator role.",
+      },
+      {
+        line: 5,
+        user_name: "creator",
+        status: "failed",
+        error:
+          "This combination of roles requires the user to be in at least one team: choose one under Member of teams.",
+      },
+      { line: 6, user_name: "bnew", status: "created" },
+    ]);
+    // Only the rows that passed the checks reached Veracode, each with MFA required.
+    expect(writes()).toEqual([
+      "POST /api/authn/v2/users",
+      "POST /api/authn/v2/users",
+      "POST /api/authn/v2/users",
+    ]);
+    const sent = fetchFn.mock.calls
+      .filter(([u, i]) => i?.method === "POST" && String(u).endsWith("/v2/users"))
+      .map(([, i]) => JSON.parse(String(i?.body)) as Rec);
+    expect(sent.map((b) => [b.user_name, b.pin_required, b.login_enabled])).toEqual([
+      ["anew", true, true],
+      ["jdoe", true, true],
+      ["bnew", true, true],
+    ]);
+    const creates = (await audit.latest(20)).filter((e) => e.action === "user.create");
+    expect(creates.map((e) => [e.reason, e.outcome])).toEqual(
+      expect.arrayContaining([
+        ["import anew (line 2)", "ok"],
+        ["import bnew (line 6)", "ok"],
+      ]),
+    );
+
+    // With the users list read, a user name or an email that's a user name is refused before
+    // sending (docs/REALITY.md, entry 35); so is a user name this import just created.
+    await get(app, "/api/users/details", cookie);
+    const again = await post(app, "/api/import", cookie, {
+      connection_id,
+      users: [
+        { ...row(2, "boss", ["extreviewer"]) },
+        { ...row(3, "shared@x.com", ["extreviewer"]), email_address: "shared@x.com" },
+        { ...row(4, "fresh", ["extreviewer"]), email_address: "shared@x.com" },
+        row(5, "cnew", ["extreviewer"]),
+        { ...row(6, "CNEW", ["extreviewer"]), email_address: "c2@x.com" },
+      ],
+    });
+    expect((await again.json()).results).toEqual([
+      {
+        line: 2,
+        user_name: "boss",
+        status: "failed",
+        error: "boss is already a user name in this organization.",
+      },
+      { line: 3, user_name: "shared@x.com", status: "created" },
+      {
+        line: 4,
+        user_name: "fresh",
+        status: "failed",
+        error: "shared@x.com is already a user name; Veracode refuses it as an email.",
+      },
+      { line: 5, user_name: "cnew", status: "created" },
+      {
+        line: 6,
+        user_name: "CNEW",
+        status: "failed",
+        error: "CNEW is already a user name in this organization.",
+      },
+    ]);
+  });
+
+  it("refuses an import with no users, or too many", async () => {
+    const { app, cookie, connection_id, writes } = await ready();
+    const none = await post(app, "/api/import", cookie, { connection_id, users: [] });
+    expect((await none.json()).error).toBe("Send the users to create.");
+    const many = Array.from({ length: 201 }, (_, i) => ({ line: i + 2 }));
+    const big = await post(app, "/api/import", cookie, { connection_id, users: many });
+    expect(big.status).toBe(400);
+    expect((await big.json()).error).toBe("A file can create at most 200 users at once.");
+    const moved = await post(app, "/api/import", cookie, { connection_id: "x", users: many });
+    expect(moved.status).toBe(409);
+    expect(writes()).toEqual([]);
   });
 
   it("creates a UI user with the chosen roles, and logs it", async () => {

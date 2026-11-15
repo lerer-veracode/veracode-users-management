@@ -56,6 +56,21 @@ export const isHidden = (hidden: string[], p: Permission): boolean =>
       containsWord(p.permission_name, phrase) || containsWord(p.permission_description, phrase),
   );
 
+// Roles the app never shows, for products the organization no longer has, listed by hand in
+// config/hidden-roles.txt: one role per line, its name on the Platform or its role name, ignoring
+// case. A hidden role a user holds stays on them in Veracode: a change keeps it.
+export const defaultHiddenRolesPath = (): string =>
+  process.env.HIDDEN_ROLES_PATH ?? resolve(import.meta.dirname, "../../../config/hidden-roles.txt");
+
+export const isHiddenRole = (
+  hidden: string[],
+  r: { role_name: string; role_description?: string },
+): boolean =>
+  hidden.some((line) => {
+    const l = line.toLowerCase();
+    return r.role_name.toLowerCase() === l || r.role_description?.toLowerCase() === l;
+  });
+
 // The same record without its hidden permissions.
 export const withoutHidden = <T extends { permissions: Permission[] }>(
   hidden: string[],

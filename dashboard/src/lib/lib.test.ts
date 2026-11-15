@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { ROLES, USERS } from "../mock/data";
-import { parseUsersCsv } from "./csv";
+import { SAMPLE_CSV, parseUsersCsv } from "./csv";
+import { exportFileName, usersCsv } from "./exportCsv";
 import { formatDateTime, fullName } from "./format";
-import { planImport } from "./importPlan";
-import { EMPTY_FILTERS, filterUsers, pageCount, pageOf, sortUsers } from "./users";
+import { csvRoles, csvScanTypes, needsTeamNote, planImport } from "./importPlan";
+import { EMPTY_FILTERS, filterUsers, pageCount, pageOf, sortUsers, userStatus } from "./users";
 import { daysLeft } from "./retention";
 import { roleView } from "./roles";
 
@@ -31,8 +32,17 @@ describe("parseUsersCsv", () => {
       user_name: "jdoe",
       first_name: "jdoe",
       roles: ["extseclead", "extreviewer"],
+      scan_types: [],
       errors: [],
     });
+  });
+  it("uses the email address for an empty user name, and the column is optional", () => {
+    expect(
+      parseUsersCsv("user_name,email_address,roles\n,a@example.com,x").rows[0]?.user_name,
+    ).toBe("a@example.com");
+    expect(parseUsersCsv("email_address,roles\na@example.com,x").rows[0]?.user_name).toBe(
+      "a@example.com",
+    );
   });
   it("reports missing columns", () => {
     expect(parseUsersCsv("user_name,email\nx,y").error).toBe(
@@ -40,30 +50,207 @@ describe("parseUsersCsv", () => {
     );
   });
   it("flags invalid rows", () => {
-    const { rows } = parseUsersCsv("user_name,email_address,roles\n,not-an-email,\n");
-    expect(rows[0]?.errors).toEqual([
-      "User name is required",
-      "Email address is not valid",
-      "At least one role is required",
+    expect(
+      parseUsersCsv("user_name,email_address,roles\nx,not-an-email,\n").rows[0]?.errors,
+    ).toEqual(["Email address is not valid", "At least one role is required"]);
+    expect(parseUsersCsv("user_name,email_address,roles\nx y,,r\n").rows[0]?.errors).toEqual([
+      "Email address is required",
+      "A user name can't contain spaces or be over 256 characters",
     ]);
   });
 });
 
 describe("planImport", () => {
-  it("works out what each row does", () => {
+  const plan = (...lines: string[]) =>
+    planImport(
+      parseUsersCsv(["user_name,email_address,roles,scan_types", ...lines].join("\n")).rows,
+      USERS,
+      ROLES,
+    );
+  const give = (p: { give: { role_name: string }[] } | undefined) =>
+    p?.give.map((r) => r.role_name);
+
+  it("creates new users only, and names who has a user name already", () => {
+    const u = USERS[1];
+    // An account whose user name isn't its email.
+    const api = USERS.find((x) => x.user_name !== x.email_address);
+    if (!u || !api) throw new Error("mock data");
+    const [taken, upper, fresh] = plan(
+      `,${u.user_name},extreviewer,`,
+      `${u.user_name.toUpperCase()},new@example.com,extreviewer,`,
+      `new,${api.email_address},extreviewer,`,
+    );
+    expect(taken?.action).toBe("Error");
+    expect(taken?.errors).toEqual([
+      `${u.user_name} is already the user name of ${u.first_name} ${u.last_name}, ${u.email_address}`,
+    ]);
+    expect(upper?.action).toBe("Error");
+    // Several users may share an email address, unless it is someone's user name: a new user
+    // name is a new user.
+    expect(fresh?.action).toBe("Create");
+  });
+  it("refuses an email that is already a user name, as Veracode does", () => {
     const u = USERS[1];
     if (!u) throw new Error("mock data");
-    const roles = u.roles.map((r) => r.role_name).join(";");
-    const csv = [
-      "user_name,email_address,first_name,last_name,roles",
-      `x,${u.email_address},${u.first_name},${u.last_name},${roles}`,
-      `x,${u.email_address.toUpperCase()},${u.first_name},${u.last_name},extreviewer`,
-      "new,new@example.com,New,Person,extreviewer",
-      "bad,bad@example.com,Bad,Role,notarole",
-    ].join("\n");
-    const plan = planImport(parseUsersCsv(csv).rows, USERS, ROLES);
-    expect(plan.map((p) => p.action)).toEqual(["No change", "Update", "Create", "Error"]);
-    expect(plan[3]?.errors).toEqual(["Unknown roles: notarole"]);
+    const [taken, earlier, refused] = plan(
+      `other,${u.user_name},extreviewer,`,
+      "x@example.com,x@example.com,extreviewer,",
+      "y,x@example.com,extreviewer,",
+    );
+    expect(taken?.errors).toEqual([
+      `Veracode refuses this email: it is the user name of ${u.first_name} ${u.last_name}`,
+    ]);
+    expect(earlier?.action).toBe("Create");
+    expect(refused?.errors).toEqual(["Veracode refuses this email: it is the user name on line 3"]);
+  });
+  it("refuses a user name used twice in the file", () => {
+    const [, second] = plan("x,x@example.com,extreviewer,", "X,y@example.com,extreviewer,");
+    expect(second?.errors).toEqual(["X is already used on line 2"]);
+  });
+  it("gives All scan types by default, or the types named, by Platform or role name", () => {
+    const [all, named, byRole, mixed, unknown] = plan(
+      "a,a@example.com,extseclead,",
+      "b,b@example.com,extseclead,Static;container scan",
+      "c,c@example.com,extseclead,extsubmitstaticscan;EXTSUBMITCONTAINERSCAN",
+      "d,d@example.com,extseclead,All;Static",
+      "e,e@example.com,extseclead,Static;Quantum",
+    );
+    expect(give(all)).toEqual(["extseclead", "extsubmitanyscan"]);
+    expect(all?.scanTypes).toBe("All");
+    expect(give(named)).toEqual(["extseclead", "extsubmitstaticscan", "extsubmitcontainerscan"]);
+    expect(named?.scanTypes).toBe("Static Scan, Container Scan");
+    expect(give(byRole)).toEqual(give(named));
+    expect(mixed?.errors).toEqual(["All can't be combined with specific scan types"]);
+    expect(unknown?.errors).toEqual(["Unknown scan types: Quantum"]);
+  });
+  it("drops scan types when no role takes them, and says so", () => {
+    const [row, two, none] = plan(
+      "a,a@example.com,extreviewer,Static",
+      "b,b@example.com,Reviewer;Executive,Static;Container",
+      "c,c@example.com,extreviewer,",
+    );
+    expect(row?.action).toBe("Create");
+    expect(give(row)).toEqual(["extreviewer"]);
+    expect(row?.scanTypes).toBe("");
+    expect(row?.notes).toEqual([
+      "Scan types not given: Reviewer doesn't take them (only Security Lead, Creator and Submitter do)",
+    ]);
+    expect(two?.notes).toEqual([
+      "Scan types not given: Reviewer, Executive don't take them (only Security Lead, Creator and Submitter do)",
+    ]);
+    expect(none?.notes).toEqual([]);
+  });
+  it("takes roles by their Platform names or role names, ignoring case", () => {
+    const [byName, mixed] = plan(
+      "a,a@example.com,Security Lead;reviewer,",
+      "b,b@example.com,EXTSECLEAD;Creator,Static",
+    );
+    expect(give(byName)).toEqual(["extseclead", "extreviewer", "extsubmitanyscan"]);
+    expect(give(mixed)).toEqual(["extseclead", "extcreator", "extsubmitstaticscan"]);
+  });
+  it("lists the roles and scan types a CSV can use", () => {
+    const roles = csvRoles(ROLES).map((r) => r.role_description);
+    expect(roles).toContain("Security Lead");
+    expect(roles).not.toContain("Administrator");
+    expect(roles).not.toContain("Any Scan");
+    expect(roles).not.toContain("Upload API");
+    expect(roles).not.toContain("No Team Restriction API");
+    expect(roles).toEqual([...roles].sort((a, b) => a.localeCompare(b)));
+    expect(csvScanTypes(ROLES).map((r) => r.role_description)).toEqual([
+      "Container Scan",
+      "Dynamic Scan",
+      "Static Scan",
+    ]);
+    const note = (name: string) => {
+      const role = ROLES.find((r) => r.role_name === name);
+      if (!role) throw new Error(`mock role ${name}`);
+      return needsTeamNote(role);
+    };
+    expect(note("teamAdmin")).toBe("left out: needs a team");
+    expect(note("extcreator")).toBe("left out without Security Lead: needs a team");
+    expect(note("extreviewer")).toBe("");
+  });
+  it("leaves out roles that need a team, and names them", () => {
+    const [teamAdmin, creator, withLead, onlyTeam] = plan(
+      "a,a@example.com,teamAdmin;extreviewer,",
+      "b,b@example.com,extcreator;extreviewer,Static",
+      "c,c@example.com,extseclead;extcreator,Static",
+      "d,d@example.com,teamAdmin,",
+    );
+    expect(teamAdmin?.action).toBe("Create");
+    expect(teamAdmin?.leftOut.map((r) => r.role_name)).toEqual(["teamAdmin"]);
+    expect(give(teamAdmin)).toEqual(["extreviewer"]);
+    // Without Creator, nothing left takes scan types.
+    expect(creator?.leftOut.map((r) => r.role_name)).toEqual(["extcreator"]);
+    expect(give(creator)).toEqual(["extreviewer"]);
+    expect(withLead?.leftOut).toEqual([]);
+    expect(give(withLead)).toEqual(["extseclead", "extcreator", "extsubmitstaticscan"]);
+    expect(onlyTeam?.action).toBe("Error");
+    expect(onlyTeam?.errors).toEqual([
+      "No role left: Team Admin needs a team, which a CSV can't set yet",
+    ]);
+  });
+  it("accepts every row of the sample offered for download", () => {
+    const rows = planImport(parseUsersCsv(SAMPLE_CSV).rows, USERS, ROLES);
+    expect(rows.map((p) => [p.user_name, p.action, p.scanTypes])).toEqual([
+      ["jane.doe@example.com", "Create", "All"],
+      ["asmith", "Create", ""],
+      ["mlopez", "Create", "Static Scan, Container Scan"],
+    ]);
+    expect(rows.every((p) => p.leftOut.length === 0)).toBe(true);
+  });
+  it("refuses unknown, Administrator, API and scan-type roles", () => {
+    const [unknown, admin, api, scan] = plan(
+      "a,a@example.com,notarole,",
+      "b,b@example.com,extadmin,",
+      "c,c@example.com,uploadapi,",
+      "d,d@example.com,extreviewer;extsubmitanyscan,",
+    );
+    expect(unknown?.errors).toEqual(["Unknown roles: notarole"]);
+    expect(admin?.errors).toEqual(["The app never gives the Administrator role"]);
+    expect(api?.errors).toEqual(["The app never gives API roles: Upload API"]);
+    expect(scan?.errors).toEqual(["Scan types go in the scan_types column: Any Scan"]);
+  });
+});
+
+describe("usersCsv", () => {
+  const byName = (name: string) => {
+    const u = USERS.find((x) => x.user_name === name);
+    if (!u) throw new Error(`mock user ${name}`);
+    return u;
+  };
+
+  it("writes the users in the import's format, email first", () => {
+    const users = ["dcohen@example.com", "kmensah@example.com", "api_rreader", "mwebb@example.com"];
+    const lines = usersCsv(users.map(byName), ROLES).trimEnd().split("\n");
+    expect(lines).toEqual([
+      "email_address,user_name,first_name,last_name,roles,scan_types",
+      "dcohen@example.com,dcohen@example.com,Dana,Cohen,Security Lead,All",
+      "kmensah@example.com,kmensah@example.com,Kofi,Mensah,Submitter,Static Scan;Container Scan",
+      "rreader@example.com,api_rreader,Results,Reader,Results API,",
+      "mwebb@example.com,mwebb@example.com,Marcus,Webb,Reviewer,",
+    ]);
+  });
+  it("quotes commas and quotes, and keeps a cell from running as a formula", () => {
+    const u = { ...byName("mwebb@example.com"), first_name: 'Jo, "J"', last_name: "=SUM(A1)" };
+    const [, line] = usersCsv([u], ROLES).split("\n");
+    expect(line).toBe('mwebb@example.com,mwebb@example.com,"Jo, ""J""",\'=SUM(A1),Reviewer,');
+  });
+  it("reads back with the import's parser, every row already a user", () => {
+    const users = USERS.filter((u) => u.user_type === "UI").slice(0, 5);
+    const rows = parseUsersCsv(usersCsv(users, ROLES)).rows;
+    expect(rows.map((r) => r.user_name)).toEqual(users.map((u) => u.user_name));
+    const plan = planImport(rows, USERS, ROLES);
+    expect(plan.every((p) => p.errors.some((e) => e.includes("is already the user name of")))).toBe(
+      true,
+    );
+  });
+  it("names the file after the connection and the day", () => {
+    expect(exportFileName("acme", new Date(2026, 10, 5))).toBe("users-acme-2026-11-05.csv");
+    expect(exportFileName("My Org / EU", new Date(2026, 0, 15))).toBe(
+      "users-My-Org-EU-2026-01-15.csv",
+    );
+    expect(exportFileName("///", new Date(2026, 0, 15))).toBe("users-users-2026-01-15.csv");
   });
 });
 
@@ -77,6 +264,19 @@ describe("user list helpers", () => {
     expect(inactive.every((u) => !u.active)).toBe(true);
     const admins = filterUsers(USERS, { ...EMPTY_FILTERS, role: "adminapi" }, ROLES);
     expect(admins.map((u) => u.user_name)).toEqual(["api_aautomation"]);
+  });
+  it("tells an active user whose login is disabled apart from an active one", () => {
+    expect(userStatus({ active: true, login_enabled: true })).toBe("active");
+    expect(userStatus({ active: true, login_enabled: false })).toBe("login_disabled");
+    expect(userStatus({ active: false, login_enabled: false })).toBe("inactive");
+    expect(userStatus({ active: false, login_enabled: true })).toBe("inactive");
+    const [first, second] = USERS;
+    if (!first || !second) throw new Error("mock data");
+    const users = [first, { ...second, active: true, login_enabled: false }];
+    const only = (status: "active" | "login_disabled") =>
+      filterUsers(users, { ...EMPTY_FILTERS, status }, ROLES).map((u) => u.user_name);
+    expect(only("login_disabled")).toEqual([second.user_name]);
+    expect(only("active")).not.toContain(second.user_name);
   });
   it("sorts both ways, with missing values first", () => {
     const asc = sortUsers(USERS, { key: "user_name", dir: "asc" });

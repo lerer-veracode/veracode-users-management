@@ -1,10 +1,23 @@
 import type { Role, User, UserType } from "../types";
 import { allowsScanType } from "./roles";
 
+// A user's status badge. Veracode keeps two settings: whether the account is active, and whether
+// its login is enabled. Disabling login leaves the account active, so the badge says so.
+export type UserStatus = "active" | "login_disabled" | "inactive";
+
+export const STATUS_LABELS: Record<UserStatus, string> = {
+  active: "Active",
+  login_disabled: "Login disabled",
+  inactive: "Inactive",
+};
+
+export const userStatus = (u: Pick<User, "active" | "login_enabled">): UserStatus =>
+  !u.active ? "inactive" : u.login_enabled ? "active" : "login_disabled";
+
 export type UserFilters = {
   search: string;
   types: UserType[];
-  status: "all" | "active" | "inactive";
+  status: "all" | UserStatus;
   role: string;
   // "all" (All scan types) or a scan type's role name.
   scanType: string;
@@ -30,7 +43,7 @@ export const filterUsers = (users: User[], f: UserFilters, roles: Role[]): User[
           v.toLowerCase().includes(term),
         )) &&
       (f.types.length === 0 || f.types.includes(u.user_type)) &&
-      (f.status === "all" || u.active === (f.status === "active")) &&
+      (f.status === "all" || userStatus(u) === f.status) &&
       (!f.role || u.roles.some((r) => r.role_name === f.role)) &&
       (!f.scanType || allowsScanType(u, roles, f.scanType)),
   );
