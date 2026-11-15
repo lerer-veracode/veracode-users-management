@@ -159,6 +159,8 @@ Success criteria:
 
 ## Phase 6: CSV import, export and end-to-end
 
+Replaced on 2026-11-15 by `docs/PLAN_CSV.md`: the import creates users only, and gives no teams yet. The criteria below are kept for the record.
+
 - `POST /api/import` applies the planned creates and updates one by one and reports each row's result.
 - The CSV's roles follow the same rules as the form: scan types for Security Lead, Creator and Submitter, and a Team Admin needs teams to manage. Decide how the CSV gives scan types and teams before building it.
 - Export the filtered users to CSV.

@@ -31,8 +31,17 @@ describe("parseUsersCsv", () => {
       user_name: "jdoe",
       first_name: "jdoe",
       roles: ["extseclead", "extreviewer"],
+      scan_types: [],
       errors: [],
     });
+  });
+  it("uses the email address for an empty user name, and the column is optional", () => {
+    expect(
+      parseUsersCsv("user_name,email_address,roles\n,a@example.com,x").rows[0]?.user_name,
+    ).toBe("a@example.com");
+    expect(parseUsersCsv("email_address,roles\na@example.com,x").rows[0]?.user_name).toBe(
+      "a@example.com",
+    );
   });
   it("reports missing columns", () => {
     expect(parseUsersCsv("user_name,email\nx,y").error).toBe(
@@ -40,30 +49,99 @@ describe("parseUsersCsv", () => {
     );
   });
   it("flags invalid rows", () => {
-    const { rows } = parseUsersCsv("user_name,email_address,roles\n,not-an-email,\n");
-    expect(rows[0]?.errors).toEqual([
-      "User name is required",
-      "Email address is not valid",
-      "At least one role is required",
+    expect(
+      parseUsersCsv("user_name,email_address,roles\nx,not-an-email,\n").rows[0]?.errors,
+    ).toEqual(["Email address is not valid", "At least one role is required"]);
+    expect(parseUsersCsv("user_name,email_address,roles\nx y,,r\n").rows[0]?.errors).toEqual([
+      "Email address is required",
+      "A user name can't contain spaces or be over 256 characters",
     ]);
   });
 });
 
 describe("planImport", () => {
-  it("works out what each row does", () => {
+  const plan = (...lines: string[]) =>
+    planImport(
+      parseUsersCsv(["user_name,email_address,roles,scan_types", ...lines].join("\n")).rows,
+      USERS,
+      ROLES,
+    );
+  const give = (p: { give: { role_name: string }[] } | undefined) =>
+    p?.give.map((r) => r.role_name);
+
+  it("creates new users only, and names who has a user name already", () => {
     const u = USERS[1];
     if (!u) throw new Error("mock data");
-    const roles = u.roles.map((r) => r.role_name).join(";");
-    const csv = [
-      "user_name,email_address,first_name,last_name,roles",
-      `x,${u.email_address},${u.first_name},${u.last_name},${roles}`,
-      `x,${u.email_address.toUpperCase()},${u.first_name},${u.last_name},extreviewer`,
-      "new,new@example.com,New,Person,extreviewer",
-      "bad,bad@example.com,Bad,Role,notarole",
-    ].join("\n");
-    const plan = planImport(parseUsersCsv(csv).rows, USERS, ROLES);
-    expect(plan.map((p) => p.action)).toEqual(["No change", "Update", "Create", "Error"]);
-    expect(plan[3]?.errors).toEqual(["Unknown roles: notarole"]);
+    const [taken, upper, fresh] = plan(
+      `,${u.user_name},extreviewer,`,
+      `${u.user_name.toUpperCase()},new@example.com,extreviewer,`,
+      `new,${u.email_address},extreviewer,`,
+    );
+    expect(taken?.action).toBe("Error");
+    expect(taken?.errors).toEqual([
+      `${u.user_name} is already the user name of ${u.first_name} ${u.last_name}, ${u.email_address}`,
+    ]);
+    expect(upper?.action).toBe("Error");
+    // Several users may share an email address: a new user name is a new user.
+    expect(fresh?.action).toBe("Create");
+  });
+  it("refuses a user name used twice in the file", () => {
+    const [, second] = plan("x,x@example.com,extreviewer,", "X,y@example.com,extreviewer,");
+    expect(second?.errors).toEqual(["X is already used on line 2"]);
+  });
+  it("gives All scan types by default, or the types named, by Platform or role name", () => {
+    const [all, named, byRole, mixed, unknown] = plan(
+      "a,a@example.com,extseclead,",
+      "b,b@example.com,extseclead,Static;container scan",
+      "c,c@example.com,extseclead,extsubmitstaticscan;EXTSUBMITCONTAINERSCAN",
+      "d,d@example.com,extseclead,All;Static",
+      "e,e@example.com,extseclead,Static;Quantum",
+    );
+    expect(give(all)).toEqual(["extseclead", "extsubmitanyscan"]);
+    expect(all?.scanTypes).toBe("All");
+    expect(give(named)).toEqual(["extseclead", "extsubmitstaticscan", "extsubmitcontainerscan"]);
+    expect(named?.scanTypes).toBe("Static Scan, Container Scan");
+    expect(give(byRole)).toEqual(give(named));
+    expect(mixed?.errors).toEqual(["All can't be combined with specific scan types"]);
+    expect(unknown?.errors).toEqual(["Unknown scan types: Quantum"]);
+  });
+  it("drops scan types when no role takes them", () => {
+    const [row] = plan("a,a@example.com,extreviewer,Static");
+    expect(row?.action).toBe("Create");
+    expect(give(row)).toEqual(["extreviewer"]);
+    expect(row?.scanTypes).toBe("");
+  });
+  it("leaves out roles that need a team, and names them", () => {
+    const [teamAdmin, creator, withLead, onlyTeam] = plan(
+      "a,a@example.com,teamAdmin;extreviewer,",
+      "b,b@example.com,extcreator;extreviewer,Static",
+      "c,c@example.com,extseclead;extcreator,Static",
+      "d,d@example.com,teamAdmin,",
+    );
+    expect(teamAdmin?.action).toBe("Create");
+    expect(teamAdmin?.leftOut.map((r) => r.role_name)).toEqual(["teamAdmin"]);
+    expect(give(teamAdmin)).toEqual(["extreviewer"]);
+    // Without Creator, nothing left takes scan types.
+    expect(creator?.leftOut.map((r) => r.role_name)).toEqual(["extcreator"]);
+    expect(give(creator)).toEqual(["extreviewer"]);
+    expect(withLead?.leftOut).toEqual([]);
+    expect(give(withLead)).toEqual(["extseclead", "extcreator", "extsubmitstaticscan"]);
+    expect(onlyTeam?.action).toBe("Error");
+    expect(onlyTeam?.errors).toEqual([
+      "No role left: Team Admin need a team, which a CSV can't set yet",
+    ]);
+  });
+  it("refuses unknown, Administrator, API and scan-type roles", () => {
+    const [unknown, admin, api, scan] = plan(
+      "a,a@example.com,notarole,",
+      "b,b@example.com,extadmin,",
+      "c,c@example.com,uploadapi,",
+      "d,d@example.com,extreviewer;extsubmitanyscan,",
+    );
+    expect(unknown?.errors).toEqual(["Unknown roles: notarole"]);
+    expect(admin?.errors).toEqual(["The app never gives the Administrator role"]);
+    expect(api?.errors).toEqual(["The app never gives API roles: Upload API"]);
+    expect(scan?.errors).toEqual(["Scan types go in the scan_types column: Any Scan"]);
   });
 });
 

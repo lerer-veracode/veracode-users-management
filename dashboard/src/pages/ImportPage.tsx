@@ -1,23 +1,19 @@
 import { useState, type ChangeEvent, type ComponentProps } from "react";
 import { ConnectionPicker } from "../components/ConnectionPicker";
 import { PageHeader } from "../components/PageHeader";
-import { StatusPill, type PillTone } from "../components/StatusPill";
+import { StatusPill } from "../components/StatusPill";
 import type { DirectoryState } from "../hooks/useDirectory";
-import { parseUsersCsv } from "../lib/csv";
+import { CSV_COLUMNS, parseUsersCsv } from "../lib/csv";
 import { readText } from "../lib/readFile";
-import { planImport, type ImportAction, type PlannedRow } from "../lib/importPlan";
-
-const TONES: Record<ImportAction, PillTone> = {
-  Create: "info",
-  Update: "warning",
-  "No change": "muted",
-  Error: "danger",
-};
+import { planImport, type PlannedRow } from "../lib/importPlan";
 
 type Props = {
   state: DirectoryState;
   picker: Omit<ComponentProps<typeof ConnectionPicker>, "what">;
 };
+
+const names = (list: { role_description: string }[]) =>
+  list.map((r) => r.role_description).join(", ");
 
 export function ImportPage({ state, picker }: Props) {
   const [fileName, setFileName] = useState("");
@@ -27,8 +23,9 @@ export function ImportPage({ state, picker }: Props) {
   const parsed = text ? parseUsersCsv(text) : null;
   const plan: PlannedRow[] =
     parsed && ready ? planImport(parsed.rows, state.users, state.roles) : [];
-  const count = (a: ImportAction) => plan.filter((p) => p.action === a).length;
-  const changes = plan.filter((p) => p.action === "Create" || p.action === "Update");
+  const creates = plan.filter((p) => p.action === "Create");
+  const missingRoles = creates.filter((p) => p.leftOut.length > 0);
+  const errors = plan.filter((p) => p.action === "Error");
 
   const pick = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -53,10 +50,16 @@ export function ImportPage({ state, picker }: Props) {
       )}
       <section className="panel drop">
         <p className="muted">
-          Columns:{" "}
-          <span className="mono">user_name, email_address, first_name, last_name, roles</span>.
-          Separate roles with <span className="mono">;</span>. Rows match existing users by email,
-          and roles are checked against the organization&apos;s real roles.
+          Columns: <span className="mono">{CSV_COLUMNS.join(", ")}</span>. Email address and roles
+          are required. An empty user name is the email address; empty scan types are All. Separate
+          roles and scan types with <span className="mono">;</span>. Scan types are All, or
+          Container, Discovery, Dynamic Analysis, Infrastructure as Code and Static.
+        </p>
+        <p className="muted">
+          The import creates new users only: a row whose user name is already used is skipped. Teams
+          can&apos;t be set from a CSV yet, so roles that need a team (Team Admin, and Creator or
+          Submitter without Security Lead) are left out. Give them by hand in the user&apos;s form
+          afterwards.
         </p>
         <label className="btn btn-outline">
           Choose CSV File
@@ -73,11 +76,25 @@ export function ImportPage({ state, picker }: Props) {
       {plan.length > 0 && (
         <>
           <div className="summary">
-            <StatusPill tone="info">{`${count("Create")} to create`}</StatusPill>
-            <StatusPill tone="warning">{`${count("Update")} to update`}</StatusPill>
-            <StatusPill tone="muted">{`${count("No change")} unchanged`}</StatusPill>
-            <StatusPill tone="danger">{`${count("Error")} with errors`}</StatusPill>
+            <StatusPill tone="info">{`${creates.length} to create`}</StatusPill>
+            <StatusPill tone="warning">{`${missingRoles.length} without some roles`}</StatusPill>
+            <StatusPill tone="danger">{`${errors.length} with errors`}</StatusPill>
           </div>
+          {missingRoles.length > 0 && (
+            <div className="notice" role="note" aria-label="Roles left out">
+              <p>
+                These users will be created without roles that need a team. Give them by hand in the
+                user&apos;s form:
+              </p>
+              <ul>
+                {missingRoles.map((p) => (
+                  <li key={p.line}>
+                    {p.user_name}: {names(p.leftOut)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <section className="table-card" aria-label="Import preview">
             <table>
               <thead>
@@ -87,6 +104,7 @@ export function ImportPage({ state, picker }: Props) {
                   <th>Email</th>
                   <th>Name</th>
                   <th>Roles</th>
+                  <th>Scan Types</th>
                   <th>Action</th>
                   <th>Problems</th>
                 </tr>
@@ -100,20 +118,36 @@ export function ImportPage({ state, picker }: Props) {
                     <td>
                       {row.first_name} {row.last_name}
                     </td>
-                    <td className="roles">{row.roles.join(", ")}</td>
-                    <td>
-                      <StatusPill tone={TONES[row.action]}>{row.action}</StatusPill>
+                    <td className="roles">
+                      {row.action === "Create"
+                        ? names(
+                            row.give.filter((r) => r.kind !== "scan_type" && r.kind !== "any_scan"),
+                          )
+                        : row.roles.join(", ")}
                     </td>
-                    <td className="error-text">{row.errors.join("; ")}</td>
+                    <td>{row.action === "Create" ? row.scanTypes : row.scan_types.join(", ")}</td>
+                    <td>
+                      <StatusPill tone={row.action === "Create" ? "info" : "danger"}>
+                        {row.action}
+                      </StatusPill>
+                    </td>
+                    <td>
+                      {row.errors.length > 0 && (
+                        <span className="error-text">{row.errors.join("; ")}</span>
+                      )}
+                      {row.action === "Create" && row.leftOut.length > 0 && (
+                        <span className="muted">Left out, needs a team: {names(row.leftOut)}</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </section>
           <div className="toolbar spaced">
-            <span className="muted">Applying the import comes with user changes, next.</span>
+            <span className="muted">Applying the import comes in the next phase.</span>
             <button type="button" className="btn btn-primary" disabled>
-              Apply {changes.length} Changes
+              Create {creates.length} Users
             </button>
           </div>
         </>

@@ -947,10 +947,10 @@ describe("choosing the connection", () => {
 
 describe("import page", () => {
   const csv = [
-    "user_name,email_address,first_name,last_name,roles",
-    "dcohen@example.com,dcohen@example.com,Dana,Cohen,extseclead",
-    "new,new@example.com,New,Person,extreviewer",
-    ",bad@example.com,Bad,Row,extreviewer",
+    "user_name,email_address,first_name,last_name,roles,scan_types",
+    ",dcohen@example.com,Dana,Cohen,extseclead,",
+    "new,new@example.com,New,Person,extseclead,Static;Container",
+    "tadmin,tadmin@example.com,Tal,Admin,teamAdmin;extreviewer,",
   ].join("\n");
 
   it("previews a CSV against the real users and roles; applying comes next", async () => {
@@ -958,11 +958,20 @@ describe("import page", () => {
     await go("#/import");
     await user.upload(screen.getByLabelText("CSV file"), new File([csv], "users.csv"));
     expect(await screen.findByText("users.csv")).toBeInTheDocument();
-    expect(await screen.findByText("1 to create")).toBeInTheDocument();
-    expect(screen.getByText("1 to update")).toBeInTheDocument();
+    expect(await screen.findByText("2 to create")).toBeInTheDocument();
+    expect(screen.getByText("1 without some roles")).toBeInTheDocument();
     expect(screen.getByText("1 with errors")).toBeInTheDocument();
-    expect(screen.getByText("User name is required")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Apply 2 Changes" })).toBeDisabled();
+    expect(
+      screen.getByText(/dcohen@example.com is already the user name of Dana Cohen/),
+    ).toBeInTheDocument();
+    const preview = screen.getByRole("region", { name: "Import preview" });
+    expect(within(preview).getByRole("row", { name: /new@example.com/ })).toHaveTextContent(
+      "Static Scan, Container Scan",
+    );
+    expect(
+      within(screen.getByRole("note", { name: "Roles left out" })).getByText("tadmin: Team Admin"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create 2 Users" })).toBeDisabled();
   });
 
   it("reports a file with missing columns, and a Veracode error", async () => {

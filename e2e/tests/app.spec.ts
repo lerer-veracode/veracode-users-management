@@ -191,8 +191,16 @@ test("adds, edits and deletes a user, and never touches an administrator", async
 test("import page previews the sample CSV against the real users", async ({ page }) => {
   await signIn(page, "/#/import");
   await page.getByLabel("CSV file").setInputFiles("../data/sample_users.csv");
-  await expect(page.getByText("2 to create")).toBeVisible();
-  await expect(page.getByText("1 to update")).toBeVisible();
-  await expect(page.getByText("1 with errors")).toBeVisible();
-  await expect(page.getByRole("button", { name: /Apply/ })).toBeDisabled();
+  await expect(page.getByText("4 to create")).toBeVisible();
+  await expect(page.getByText("1 without some roles")).toBeVisible();
+  await expect(page.getByText("3 with errors")).toBeVisible();
+  await expect(page.getByRole("note", { name: "Roles left out" })).toContainText(
+    "tadmin: Team Admin",
+  );
+  await expect(
+    page.getByText("jdoe@example.com is already the user name of Jane Doe, jdoe@example.com"),
+  ).toBeVisible();
+  await expect(page.getByText(/No role left: Submitter need a team/)).toBeVisible();
+  await expect(page.getByText("Email address is required")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Create 4 Users" })).toBeDisabled();
 });

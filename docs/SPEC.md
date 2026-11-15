@@ -28,7 +28,7 @@ A local web app that manages the users of one Veracode organization at a time th
   - Login enabled and Require MFA. A new user's login is enabled, and MFA is required unless it's turned off.
 - Enable or disable a user's login straight from the row's Actions menu, after a confirmation. Edit and Delete are there too.
 - A confirmation before a user is deleted.
-- A CSV import page that shows each row, whether it is valid, and what it will do: create, update or no change.
+- A CSV import page that shows each row, whether it is valid, and what it will do: create, create without the roles that need a team, or nothing (an error).
 - The saved connections, with the organization, region and whether the token is valid, and a way to test each one. Connections are added and removed in the terminal with `npm run connect`, never in the browser.
 
 ## CSV format
@@ -36,13 +36,18 @@ A local web app that manages the users of one Veracode organization at a time th
 A header row, then one user per row:
 
 ```csv
-user_name,email_address,first_name,last_name,roles
-jdoe,jdoe@example.com,Jane,Doe,"extseclead;extsubmitanyscan"
+user_name,email_address,first_name,last_name,roles,scan_types
+jdoe,jdoe@example.com,Jane,Doe,extseclead,
+,asmith@example.com,Alex,Smith,extreviewer,
+mlopez,mlopez@example.com,Maria,Lopez,extseclead;extcreator,Static;Container
 ```
 
-- `user_name`, `email_address` and `roles` are required. `first_name` and `last_name` are optional and default to the part of the email before the `@` when missing.
-- Roles are Veracode role names, separated by `;`.
-- A row matches an existing user by `email_address`. A match is an update; no match is a create.
+- `email_address` and `roles` are required. An empty `user_name` is the email address. `first_name` and `last_name` default to the part of the email before the `@`.
+- `roles`: Veracode role names, separated by `;`. Scan types don't go here.
+- `scan_types`: empty for All, or the Platform's names separated by `;` (Container, Discovery, Dynamic Analysis, Infrastructure as Code, Static); role names work too. They apply to Security Lead, Creator and Submitter, and are dropped for other roles.
+- The import creates users only. A row whose user name is already used in the organization is skipped, naming the user who has it. Several users may share an email address, so the email never matches a row to a user.
+- Teams can't be set from a CSV yet. Roles that need a team (Team Admin, and Creator or Submitter without Security Lead) are left out of the user created, and the import names them, to be given by hand. A row with no other role is skipped.
+- Details: `docs/PLAN_CSV.md`.
 
 ## Rules
 
@@ -113,3 +118,12 @@ Veracode can limit a user's sign-in to a set of IP addresses (`ip_restricted` an
 ### Browser sign-in (device code)
 
 Veracode's OAuth metadata lists the device-code grant (`urn:ietf:params:oauth:grant-type:device_code`), which would let someone approve the app in their browser with no client secret at all. Veracode does not yet document a device-authorization endpoint or a client ID that other apps can use, so we can't build on it. Revisit if Veracode documents it.
+
+### After the CSV import (agreed 2026-11-15)
+
+In this order of need, none scheduled yet:
+
+- **Teams in the CSV import.** Let a row give the teams a user is a member of, and the teams a Team Admin manages, so roles that need a team (Creator, Submitter, Team Admin) can be imported. Until then the import refuses them (`docs/PLAN_CSV.md`).
+- **Update users from a CSV.** Let the import change existing users (matched by user name) as well as create new ones, with a preview of each change. Until then the import creates only.
+- **Mass assignment.** Add or remove roles and teams for several chosen users at once, with one review of every change.
+- **The organization's own roles.** List custom roles apart, under "Your organization's roles", with the roles each includes, as the Platform does (`docs/PLAN_ROLES.md`, "Later").
