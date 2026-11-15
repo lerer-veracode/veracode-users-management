@@ -3,7 +3,8 @@ import { ConnectionPicker } from "../components/ConnectionPicker";
 import { PageHeader } from "../components/PageHeader";
 import { StatusPill } from "../components/StatusPill";
 import type { DirectoryState } from "../hooks/useDirectory";
-import { CSV_COLUMNS, parseUsersCsv } from "../lib/csv";
+import { CSV_COLUMNS, SAMPLE_CSV, parseUsersCsv } from "../lib/csv";
+import { downloadText } from "../lib/download";
 import { readText } from "../lib/readFile";
 import { planImport, type PlannedRow } from "../lib/importPlan";
 
@@ -65,6 +66,13 @@ export function ImportPage({ state, picker }: Props) {
           Choose CSV File
           <input type="file" accept=".csv,text/csv" hidden onChange={pick} aria-label="CSV file" />
         </label>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => downloadText("sample_users.csv", SAMPLE_CSV)}
+        >
+          Download Sample CSV
+        </button>
         {fileName && <span>{fileName}</span>}
         {parsed?.error && (
           <p className="error-text" role="alert">

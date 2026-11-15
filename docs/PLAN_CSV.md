@@ -36,7 +36,8 @@ A row is an error, and nothing is sent for it, when:
 
 - `dashboard/src/lib/csv.ts` reads the new columns. `dashboard/src/lib/importPlan.ts` checks each row against the organization's users and roles as above: Create, Create without some roles (naming them), or Error.
 - The Import page explains the format, and says that roles needing a team (Team Admin, and Creator or Submitter without Security Lead) are left out, to be given by hand in the form. Its preview shows the user name, email, name, roles, scan types, action and problems, and above the table, the users who'll miss roles and which.
-- `data/sample_users.csv` follows the new format: three good rows, one created without a team-bound role, and three bad ones (a user name already used, only a team-bound role, a missing email).
+- **Download Sample CSV** on the Import page saves a template, `sample_users.csv`: three valid rows, one for each way of writing a user (no user name and All scan types; a user name and a role with no scan types; two roles and specific scan types). The administrator asked for it on 2026-11-15.
+- `data/sample_users.csv` (for tests) follows the new format: three good rows, one created without a team-bound role, and three bad ones (a user name already used, only a team-bound role, a missing email).
 - `docs/SPEC.md` "CSV format" matches this plan.
 
 Success criteria:
@@ -44,6 +45,7 @@ Success criteria:
 - [x] Dashboard tests: an empty user name becomes the email; empty scan types become All; `Static;Container` and the role names give the same roles; scan types are dropped when no role needs them.
 - [x] Dashboard tests: Team Admin, and Creator without Security Lead, are left out and named; Creator with Security Lead is kept; a row with only Team Admin is an error.
 - [x] Dashboard tests: each error case above, with its message; a user name already used names the user who has it.
+- [x] Download Sample CSV saves the template, and every row of it previews as Create (dashboard tests).
 - [x] The sample file previews as 4 to create (1 without some roles) and 3 with errors against the local stand-in (Playwright); a dashboard test previews a smaller file against the mock data.
 
 ## Phase 2: apply the import

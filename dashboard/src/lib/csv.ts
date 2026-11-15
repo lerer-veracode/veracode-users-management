@@ -25,6 +25,18 @@ export const CSV_COLUMNS = [
   "scan_types",
 ] as const;
 
+// The template the Import page offers: one row for each way of writing a user.
+export const SAMPLE_CSV = [
+  CSV_COLUMNS.join(","),
+  // No user name: it's the email address. No scan types: All.
+  ",jane.doe@example.com,Jane,Doe,extseclead,",
+  // A user name of its own, and a role that takes no scan types.
+  "asmith,alex.smith@example.com,Alex,Smith,extreviewer,",
+  // Two roles, and specific scan types.
+  "mlopez,maria.lopez@example.com,Maria,Lopez,extseclead;extcreator,Static;Container",
+  "",
+].join("\n");
+
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const REQUIRED = ["email_address", "roles"];
 

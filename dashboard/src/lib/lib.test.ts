@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ROLES, USERS } from "../mock/data";
-import { parseUsersCsv } from "./csv";
+import { SAMPLE_CSV, parseUsersCsv } from "./csv";
 import { formatDateTime, fullName } from "./format";
 import { planImport } from "./importPlan";
 import { EMPTY_FILTERS, filterUsers, pageCount, pageOf, sortUsers } from "./users";
@@ -130,6 +130,15 @@ describe("planImport", () => {
     expect(onlyTeam?.errors).toEqual([
       "No role left: Team Admin need a team, which a CSV can't set yet",
     ]);
+  });
+  it("accepts every row of the sample offered for download", () => {
+    const rows = planImport(parseUsersCsv(SAMPLE_CSV).rows, USERS, ROLES);
+    expect(rows.map((p) => [p.user_name, p.action, p.scanTypes])).toEqual([
+      ["jane.doe@example.com", "Create", "All"],
+      ["asmith", "Create", ""],
+      ["mlopez", "Create", "Static Scan, Container Scan"],
+    ]);
+    expect(rows.every((p) => p.leftOut.length === 0)).toBe(true);
   });
   it("refuses unknown, Administrator, API and scan-type roles", () => {
     const [unknown, admin, api, scan] = plan(

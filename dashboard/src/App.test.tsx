@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
+import { readText } from "./lib/readFile";
 import { ROLES, TEAMS, USERS } from "./mock/data";
 import type { Connection, User } from "./types";
 
@@ -972,6 +973,25 @@ describe("import page", () => {
       within(screen.getByRole("note", { name: "Roles left out" })).getByText("tadmin: Team Admin"),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create 2 Users" })).toBeDisabled();
+  });
+
+  it("downloads the sample CSV", async () => {
+    const user = userEvent.setup();
+    const saved: Blob[] = [];
+    URL.createObjectURL = vi.fn((blob: Blob) => {
+      saved.push(blob);
+      return "blob:sample";
+    });
+    URL.revokeObjectURL = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    await go("#/import");
+    await user.click(screen.getByRole("button", { name: "Download Sample CSV" }));
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(click.mock.contexts[0]).toMatchObject({ download: "sample_users.csv" });
+    expect(saved[0] && (await readText(saved[0]))).toMatch(
+      /^user_name,email_address,first_name,last_name,roles,scan_types\n/,
+    );
+    click.mockRestore();
   });
 
   it("reports a file with missing columns, and a Veracode error", async () => {
