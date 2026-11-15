@@ -99,6 +99,10 @@ export function SignInPage({ onSignIn }: Props) {
           No account? Ask someone who already has one to run{" "}
           <span className="mono">npm run connect -- add-user</span>.
         </p>
+        <p className="signin-help">
+          Connections and app users are managed in the terminal:{" "}
+          <span className="mono">npm run connect -- help</span> lists every command.
+        </p>
       </form>
     </main>
   );
