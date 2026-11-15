@@ -85,6 +85,6 @@ The rule of at most one test user still holds (`AGENTS.md`). If the administrato
 
 Success criteria:
 
-- [ ] One user was created from a CSV, matches the Platform, and was deleted; the bad rows created nothing.
-- [ ] An export of the real users opens in a spreadsheet and matches the Users page.
-- [ ] `docs/REALITY.md` and `docs/STATUS.md` record what was seen.
+- [x] One user was created from a CSV, matches the Platform, and was deleted; the bad rows created nothing. Done by the administrator, 2026-11-15; the Activity log showed the import's create.
+- [x] An export of the real users opens in a spreadsheet and matches the Users page (the administrator, 2026-11-15). The Login disabled badge and filter were checked too.
+- [x] `docs/REALITY.md` and `docs/STATUS.md` record what was seen. Nothing new about Veracode: entry 35 (an email that is a user name) was already known and the import checks for it.
