@@ -21,7 +21,7 @@ mlopez@example.com,mlopez,Maria,Lopez,Security Lead;Creator,Static;Container
 
 - `email_address` and `roles` are required. `user_name` defaults to the email address. `first_name` and `last_name` default to the part of the email before the `@`. `scan_types` defaults to All.
 - `roles`: the roles as the Platform names them (Security Lead, Creator, Reviewer), separated by `;`. Veracode's role names (`extseclead`) work too, ignoring case (the administrator, 2026-11-15).
-- `scan_types`: `All`, or one or more of the Platform's names, separated by `;`: Container, Discovery, Dynamic Analysis, Infrastructure as Code, Static. The role names (`extsubmitstaticscan` and so on) are accepted too, ignoring case. They apply only to Security Lead, Creator and Submitter, and are dropped when the user has none of them.
+- `scan_types`: `All`, or one or more of the Platform's names, separated by `;`: Container, Discovery, Dynamic Analysis, Infrastructure as Code, Static. The role names (`extsubmitstaticscan` and so on) are accepted too, ignoring case. They apply only to Security Lead, Creator and Submitter. For a user with none of them they are dropped, and the preview and the confirmation say so on that row ("Scan types not given: Reviewer, Executive don't take them"); the row is still created (the administrator found the silent drop confusing, 2026-11-15).
 
 **Roles that need a team** are left out of the user created: Team Admin always, and Creator or Submitter when the row has no Security Lead (`docs/SPEC.md`, the form's rules). The row is still created, marked "Created without some roles", with the roles left out. If no role is left, the row is an error.
 

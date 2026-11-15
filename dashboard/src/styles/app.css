@@ -970,3 +970,8 @@ fieldset.field {
   margin: 0;
   padding-left: 20px;
 }
+
+/* A note on its own line inside a table cell. */
+.block {
+  display: block;
+}

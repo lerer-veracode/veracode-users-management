@@ -123,11 +123,22 @@ describe("planImport", () => {
     expect(mixed?.errors).toEqual(["All can't be combined with specific scan types"]);
     expect(unknown?.errors).toEqual(["Unknown scan types: Quantum"]);
   });
-  it("drops scan types when no role takes them", () => {
-    const [row] = plan("a,a@example.com,extreviewer,Static");
+  it("drops scan types when no role takes them, and says so", () => {
+    const [row, two, none] = plan(
+      "a,a@example.com,extreviewer,Static",
+      "b,b@example.com,Reviewer;Executive,Static;Container",
+      "c,c@example.com,extreviewer,",
+    );
     expect(row?.action).toBe("Create");
     expect(give(row)).toEqual(["extreviewer"]);
     expect(row?.scanTypes).toBe("");
+    expect(row?.notes).toEqual([
+      "Scan types not given: Reviewer doesn't take them (only Security Lead, Creator and Submitter do)",
+    ]);
+    expect(two?.notes).toEqual([
+      "Scan types not given: Reviewer, Executive don't take them (only Security Lead, Creator and Submitter do)",
+    ]);
+    expect(none?.notes).toEqual([]);
   });
   it("takes roles by their Platform names or role names, ignoring case", () => {
     const [byName, mixed] = plan(

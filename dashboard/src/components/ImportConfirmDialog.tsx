@@ -53,6 +53,12 @@ export function ImportConfirmDialog({ source, creates, skipped, onConfirm, onCan
             {p.leftOut.length > 0 && (
               <span className="muted"> · Left out, needs a team: {names(p.leftOut)}</span>
             )}
+            {p.notes.map((n) => (
+              <span key={n} className="muted">
+                {" "}
+                · {n}
+              </span>
+            ))}
           </li>
         ))}
       </ul>

@@ -13,6 +13,8 @@ export type PlannedRow = CsvUser & {
   give: Role[];
   // Roles that need a team, which a CSV can't set yet: left out of the user created.
   leftOut: Role[];
+  // Things the row asks for that the user won't get, though the row is still created.
+  notes: string[];
   // "All", the scan types by name, or "" when no role takes scan types.
   scanTypes: string;
 };
@@ -162,6 +164,12 @@ const planRow = (row: CsvUser, users: User[], roles: Role[], earlier: CsvUser[])
     action: errors.length > 0 ? "Error" : "Create",
     give: [...kept, ...scan.give],
     leftOut,
+    notes:
+      !takesScanTypes && row.scan_types.length > 0 && kept.length > 0
+        ? [
+            `Scan types not given: ${kept.map((r) => r.role_description).join(", ")} ${kept.length === 1 ? "doesn't" : "don't"} take them (only Security Lead, Creator and Submitter do)`,
+          ]
+        : [],
     scanTypes: scan.label,
   };
 };

@@ -259,6 +259,12 @@ export function ImportPage({ state, reload, picker }: Props) {
                       {row.action === "Create" && row.leftOut.length > 0 && (
                         <span className="muted">Left out, needs a team: {names(row.leftOut)}</span>
                       )}
+                      {row.action === "Create" &&
+                        row.notes.map((n) => (
+                          <span key={n} className="muted block">
+                            {n}
+                          </span>
+                        ))}
                     </td>
                   </tr>
                 ))}
