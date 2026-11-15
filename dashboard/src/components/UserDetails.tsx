@@ -2,7 +2,7 @@ import { formatDateTime, fullName } from "../lib/format";
 import { roleView } from "../lib/roles";
 import type { Role, Source, User } from "../types";
 import { Dialog } from "./Dialog";
-import { StatusPill } from "./StatusPill";
+import { UserStatusPill } from "./UserStatusPill";
 
 type Props = {
   user: User;
@@ -71,9 +71,7 @@ export function UserDetails({ user, roles, source, onClose, onEdit, onDelete }: 
   return (
     <Dialog title={user.user_name} onClose={onClose}>
       <p>
-        <StatusPill tone={user.active ? "success" : "warning"}>
-          {user.active ? "Active" : "Inactive"}
-        </StatusPill>
+        <UserStatusPill user={user} />
       </p>
       <dl className="facts">
         {facts.map(([label, value]) => (

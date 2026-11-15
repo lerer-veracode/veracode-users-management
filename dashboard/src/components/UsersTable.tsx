@@ -5,7 +5,7 @@ import { roleView } from "../lib/roles";
 import { Icon } from "./Icon";
 import { Menu } from "./Menu";
 import { SortHeader } from "./SortHeader";
-import { StatusPill } from "./StatusPill";
+import { UserStatusPill } from "./UserStatusPill";
 
 type Props = {
   users: User[];
@@ -68,9 +68,7 @@ export function UsersTable({
             <td className="roles">{roleNames(u)}</td>
             <td className="nowrap">{u.details_pending ? "…" : formatDateTime(u.last_login)}</td>
             <td>
-              <StatusPill tone={u.active ? "success" : "warning"}>
-                {u.active ? "Active" : "Inactive"}
-              </StatusPill>
+              <UserStatusPill user={u} />
             </td>
             <td>
               <Menu

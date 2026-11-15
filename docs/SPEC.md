@@ -19,7 +19,7 @@ A local web app that manages the users of one Veracode organization at a time th
 
 ## What the administrator needs to see
 
-- The users of the connected organization in a table that looks and works like the Veracode Platform: user name, name, email, type, roles, last login and status.
+- The users of the connected organization in a table that looks and works like the Veracode Platform: user name, name, email, type, roles, last login and status. The status is Active, Login disabled (the account is active but its login is disabled), or Inactive; the Status filter offers the same three.
 - A form to add or edit a user, with the roles to choose from, like the Veracode Platform's:
   - For a new user, the user name: the email address (the default) or a different one, which must not already be used in the organization. Several users may share an email address. An existing user's user name doesn't change.
   - Security Lead, Creator and Submitter need scan types: All scan types, or one or more specific types. A Creator or Submitter must also be in at least one team, unless they are also a Security Lead; Security Lead alone needs no team. This applies to new users and to changes, and the app refuses such a combination before sending it to Veracode, with "This combination of roles requires the user to be in at least one team".

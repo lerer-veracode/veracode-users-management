@@ -3,7 +3,7 @@ import { ROLES, USERS } from "../mock/data";
 import { SAMPLE_CSV, parseUsersCsv } from "./csv";
 import { formatDateTime, fullName } from "./format";
 import { csvRoles, csvScanTypes, needsTeamNote, planImport } from "./importPlan";
-import { EMPTY_FILTERS, filterUsers, pageCount, pageOf, sortUsers } from "./users";
+import { EMPTY_FILTERS, filterUsers, pageCount, pageOf, sortUsers, userStatus } from "./users";
 import { daysLeft } from "./retention";
 import { roleView } from "./roles";
 
@@ -194,6 +194,19 @@ describe("user list helpers", () => {
     expect(inactive.every((u) => !u.active)).toBe(true);
     const admins = filterUsers(USERS, { ...EMPTY_FILTERS, role: "adminapi" }, ROLES);
     expect(admins.map((u) => u.user_name)).toEqual(["api_aautomation"]);
+  });
+  it("tells an active user whose login is disabled apart from an active one", () => {
+    expect(userStatus({ active: true, login_enabled: true })).toBe("active");
+    expect(userStatus({ active: true, login_enabled: false })).toBe("login_disabled");
+    expect(userStatus({ active: false, login_enabled: false })).toBe("inactive");
+    expect(userStatus({ active: false, login_enabled: true })).toBe("inactive");
+    const [first, second] = USERS;
+    if (!first || !second) throw new Error("mock data");
+    const users = [first, { ...second, active: true, login_enabled: false }];
+    const only = (status: "active" | "login_disabled") =>
+      filterUsers(users, { ...EMPTY_FILTERS, status }, ROLES).map((u) => u.user_name);
+    expect(only("login_disabled")).toEqual([second.user_name]);
+    expect(only("active")).not.toContain(second.user_name);
   });
   it("sorts both ways, with missing values first", () => {
     const asc = sortUsers(USERS, { key: "user_name", dir: "asc" });

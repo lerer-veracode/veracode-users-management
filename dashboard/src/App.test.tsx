@@ -210,6 +210,18 @@ const fakeBackend = () => {
             : "";
         return reply(200, { user_name: email });
       }
+      // An update: apply the plain fields changed, and answer with the user, as the backend does.
+      const changes = get("changes");
+      const i = state.users.findIndex((u) => u.user_id === id);
+      const current = state.users[i];
+      if (current && typeof changes === "object" && changes !== null) {
+        const flags = Object.fromEntries(
+          Object.entries(changes).filter(([, v]) => typeof v === "boolean"),
+        );
+        const user = { ...current, ...flags };
+        state.users = state.users.map((u, j) => (j === i ? user : u));
+        return reply(200, { user });
+      }
       return reply(200, {});
     }
     if (path === "/api/audit/page") {
@@ -616,6 +628,10 @@ describe("changing users", () => {
     expect(
       await screen.findByText("Disabled login for mwebb@example.com in acme."),
     ).toBeInTheDocument();
+    // The account is still active, but its badge says its login is disabled.
+    expect(screen.getByRole("row", { name: /mwebb@example.com/ })).toHaveTextContent(
+      "Login disabled",
+    );
     expect(backend.state.sent.at(-1)).toEqual({
       path: "/api/users/update",
       body: { connection_id: "c1", id: USERS[3]?.user_id, changes: { login_enabled: false } },

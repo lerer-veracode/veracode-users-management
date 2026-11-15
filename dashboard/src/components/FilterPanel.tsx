@@ -1,15 +1,16 @@
 import { FilterGroup } from "./FilterGroup";
 import type { Role, UserType } from "../types";
 import type { UserFilters } from "../lib/users";
-import { EMPTY_FILTERS } from "../lib/users";
+import { EMPTY_FILTERS, STATUS_LABELS } from "../lib/users";
 import { isScanType, isShownAsRole } from "../lib/roles";
 import { Icon } from "./Icon";
 
 const TYPES: UserType[] = ["UI", "API", "SAML"];
 const STATUSES = [
   { value: "all", label: "All" },
-  { value: "active", label: "Active" },
-  { value: "inactive", label: "Inactive" },
+  { value: "active", label: STATUS_LABELS.active },
+  { value: "login_disabled", label: STATUS_LABELS.login_disabled },
+  { value: "inactive", label: STATUS_LABELS.inactive },
 ] as const;
 
 type Props = { filters: UserFilters; roles: Role[]; onChange: (f: UserFilters) => void };
@@ -21,7 +22,12 @@ const chipsFor = (f: UserFilters, roles: Role[], set: (f: UserFilters) => void) 
     clear: () => set({ ...f, types: f.types.filter((x) => x !== t) }),
   })),
   ...(f.status !== "all"
-    ? [{ label: `Status=${f.status}`, clear: () => set({ ...f, status: "all" as const }) }]
+    ? [
+        {
+          label: `Status=${STATUS_LABELS[f.status]}`,
+          clear: () => set({ ...f, status: "all" as const }),
+        },
+      ]
     : []),
   ...(f.role ? [{ label: `Role=${f.role}`, clear: () => set({ ...f, role: "" }) }] : []),
   ...(f.scanType
