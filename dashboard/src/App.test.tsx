@@ -1388,6 +1388,8 @@ describe("sign in", () => {
     const user = userEvent.setup();
     render(<App now={NOW} />);
     expect((await screen.findAllByText(/un-official/i)).length).toBeGreaterThan(0);
+    // Where to find the terminal's commands.
+    expect(screen.getByText("npm run connect -- help")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Next" }));
     expect(screen.getByRole("alert")).toHaveTextContent("Enter your username.");
     await user.type(screen.getByLabelText("Username"), "yaakov");
