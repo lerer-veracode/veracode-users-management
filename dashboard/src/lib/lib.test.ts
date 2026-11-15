@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ROLES, USERS } from "../mock/data";
 import { SAMPLE_CSV, parseUsersCsv } from "./csv";
 import { formatDateTime, fullName } from "./format";
-import { planImport } from "./importPlan";
+import { csvRoles, csvScanTypes, needsTeamNote, planImport } from "./importPlan";
 import { EMPTY_FILTERS, filterUsers, pageCount, pageOf, sortUsers } from "./users";
 import { daysLeft } from "./retention";
 import { roleView } from "./roles";
@@ -110,6 +110,36 @@ describe("planImport", () => {
     expect(row?.action).toBe("Create");
     expect(give(row)).toEqual(["extreviewer"]);
     expect(row?.scanTypes).toBe("");
+  });
+  it("takes roles by their Platform names or role names, ignoring case", () => {
+    const [byName, mixed] = plan(
+      "a,a@example.com,Security Lead;reviewer,",
+      "b,b@example.com,EXTSECLEAD;Creator,Static",
+    );
+    expect(give(byName)).toEqual(["extseclead", "extreviewer", "extsubmitanyscan"]);
+    expect(give(mixed)).toEqual(["extseclead", "extcreator", "extsubmitstaticscan"]);
+  });
+  it("lists the roles and scan types a CSV can use", () => {
+    const roles = csvRoles(ROLES).map((r) => r.role_description);
+    expect(roles).toContain("Security Lead");
+    expect(roles).not.toContain("Administrator");
+    expect(roles).not.toContain("Any Scan");
+    expect(roles).not.toContain("Upload API");
+    expect(roles).not.toContain("No Team Restriction API");
+    expect(roles).toEqual([...roles].sort((a, b) => a.localeCompare(b)));
+    expect(csvScanTypes(ROLES).map((r) => r.role_description)).toEqual([
+      "Container Scan",
+      "Dynamic Scan",
+      "Static Scan",
+    ]);
+    const note = (name: string) => {
+      const role = ROLES.find((r) => r.role_name === name);
+      if (!role) throw new Error(`mock role ${name}`);
+      return needsTeamNote(role);
+    };
+    expect(note("teamAdmin")).toBe("left out: needs a team");
+    expect(note("extcreator")).toBe("left out without Security Lead: needs a team");
+    expect(note("extreviewer")).toBe("");
   });
   it("leaves out roles that need a team, and names them", () => {
     const [teamAdmin, creator, withLead, onlyTeam] = plan(

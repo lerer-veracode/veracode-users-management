@@ -14,13 +14,13 @@ The phases below are the order of building, each on its own branch and pull requ
 
 ```csv
 user_name,email_address,first_name,last_name,roles,scan_types
-jdoe,jdoe@example.com,Jane,Doe,extseclead,
-,asmith@example.com,Alex,Smith,extreviewer,
-mlopez,mlopez@example.com,Maria,Lopez,extseclead;extcreator,Static;Container
+jdoe,jdoe@example.com,Jane,Doe,Security Lead,
+,asmith@example.com,Alex,Smith,Reviewer,
+mlopez,mlopez@example.com,Maria,Lopez,Security Lead;Creator,Static;Container
 ```
 
 - `email_address` and `roles` are required. `user_name` defaults to the email address. `first_name` and `last_name` default to the part of the email before the `@`. `scan_types` defaults to All.
-- `roles`: Veracode role names, separated by `;`. Scan types don't go here.
+- `roles`: the roles as the Platform names them (Security Lead, Creator, Reviewer), separated by `;`. Veracode's role names (`extseclead`) work too, ignoring case (the administrator, 2026-11-15).
 - `scan_types`: `All`, or one or more of the Platform's names, separated by `;`: Container, Discovery, Dynamic Analysis, Infrastructure as Code, Static. The role names (`extsubmitstaticscan` and so on) are accepted too, ignoring case. They apply only to Security Lead, Creator and Submitter, and are dropped when the user has none of them.
 
 **Roles that need a team** are left out of the user created: Team Admin always, and Creator or Submitter when the row has no Security Lead (`docs/SPEC.md`, the form's rules). The row is still created, marked "Created without some roles", with the roles left out. If no role is left, the row is an error.
@@ -35,7 +35,7 @@ A row is an error, and nothing is sent for it, when:
 ## Phase 1: the format and the preview
 
 - `dashboard/src/lib/csv.ts` reads the new columns. `dashboard/src/lib/importPlan.ts` checks each row against the organization's users and roles as above: Create, Create without some roles (naming them), or Error.
-- The Import page explains the format, and says that roles needing a team (Team Admin, and Creator or Submitter without Security Lead) are left out, to be given by hand in the form. Its preview shows the user name, email, name, roles, scan types, action and problems, and above the table, the users who'll miss roles and which.
+- The Import page explains the format as a list of points, lists the organization's roles (marking those left out for needing a team) and scan types a CSV can use, and says that roles needing a team (Team Admin, and Creator or Submitter without Security Lead) are left out, to be given by hand in the form. Its preview shows the user name, email, name, roles, scan types, action and problems, and above the table, the users who'll miss roles and which.
 - **Download Sample CSV** on the Import page saves a template, `sample_users.csv`: three valid rows, one for each way of writing a user (no user name and All scan types; a user name and a role with no scan types; two roles and specific scan types). The administrator asked for it on 2026-11-15.
 - `data/sample_users.csv` (for tests) follows the new format: three good rows, one created without a team-bound role, and three bad ones (a user name already used, only a team-bound role, a missing email).
 - `docs/SPEC.md` "CSV format" matches this plan.
@@ -45,6 +45,7 @@ Success criteria:
 - [x] Dashboard tests: an empty user name becomes the email; empty scan types become All; `Static;Container` and the role names give the same roles; scan types are dropped when no role needs them.
 - [x] Dashboard tests: Team Admin, and Creator without Security Lead, are left out and named; Creator with Security Lead is kept; a row with only Team Admin is an error.
 - [x] Dashboard tests: each error case above, with its message; a user name already used names the user who has it.
+- [x] Dashboard tests: roles by Platform name or role name, ignoring case; the lists of roles and scan types leave out Administrator, API roles, scan types and the team setting, and mark the team-bound roles.
 - [x] Download Sample CSV saves the template, and every row of it previews as Create (dashboard tests).
 - [x] The sample file previews as 4 to create (1 without some roles) and 3 with errors against the local stand-in (Playwright); a dashboard test previews a smaller file against the mock data.
 

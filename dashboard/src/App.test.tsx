@@ -973,6 +973,18 @@ describe("import page", () => {
       within(screen.getByRole("note", { name: "Roles left out" })).getByText("tadmin: Team Admin"),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create 2 Users" })).toBeDisabled();
+    // The names a CSV can use, with the roles a team-less import leaves out.
+    const roles = screen.getByRole("list", { name: "Roles for the CSV" });
+    expect(within(roles).getByText(/^Creator/)).toHaveTextContent(
+      "Creator (left out without Security Lead: needs a team)",
+    );
+    expect(within(roles).queryByText("Administrator")).toBeNull();
+    expect(
+      within(screen.getByRole("list", { name: "Scan types for the CSV" })).getByText("Static Scan"),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("list", { name: "CSV format" })).getAllByRole("listitem"),
+    ).toHaveLength(6);
   });
 
   it("downloads the sample CSV", async () => {

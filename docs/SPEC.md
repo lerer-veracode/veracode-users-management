@@ -37,13 +37,13 @@ A header row, then one user per row:
 
 ```csv
 user_name,email_address,first_name,last_name,roles,scan_types
-jdoe,jdoe@example.com,Jane,Doe,extseclead,
-,asmith@example.com,Alex,Smith,extreviewer,
-mlopez,mlopez@example.com,Maria,Lopez,extseclead;extcreator,Static;Container
+jdoe,jdoe@example.com,Jane,Doe,Security Lead,
+,asmith@example.com,Alex,Smith,Reviewer,
+mlopez,mlopez@example.com,Maria,Lopez,Security Lead;Creator,Static;Container
 ```
 
 - `email_address` and `roles` are required. An empty `user_name` is the email address. `first_name` and `last_name` default to the part of the email before the `@`.
-- `roles`: Veracode role names, separated by `;`. Scan types don't go here.
+- `roles`: the roles as the Platform names them (Security Lead, Creator, Reviewer), separated by `;`; Veracode's role names (`extseclead`) work too, ignoring case. Scan types don't go here. The Import page lists the organization's roles and scan types.
 - `scan_types`: empty for All, or the Platform's names separated by `;` (Container, Discovery, Dynamic Analysis, Infrastructure as Code, Static); role names work too. They apply to Security Lead, Creator and Submitter, and are dropped for other roles.
 - The import creates users only. A row whose user name is already used in the organization is skipped, naming the user who has it. Several users may share an email address, so the email never matches a row to a user.
 - Teams can't be set from a CSV yet. Roles that need a team (Team Admin, and Creator or Submitter without Security Lead) are left out of the user created, and the import names them, to be given by hand. A row with no other role is skipped.

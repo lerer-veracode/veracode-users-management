@@ -29,11 +29,11 @@ export const CSV_COLUMNS = [
 export const SAMPLE_CSV = [
   CSV_COLUMNS.join(","),
   // No user name: it's the email address. No scan types: All.
-  ",jane.doe@example.com,Jane,Doe,extseclead,",
+  ",jane.doe@example.com,Jane,Doe,Security Lead,",
   // A user name of its own, and a role that takes no scan types.
-  "asmith,alex.smith@example.com,Alex,Smith,extreviewer,",
+  "asmith,alex.smith@example.com,Alex,Smith,Reviewer,",
   // Two roles, and specific scan types.
-  "mlopez,maria.lopez@example.com,Maria,Lopez,extseclead;extcreator,Static;Container",
+  "mlopez,maria.lopez@example.com,Maria,Lopez,Security Lead;Creator,Static;Container",
   "",
 ].join("\n");
 

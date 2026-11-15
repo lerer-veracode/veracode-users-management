@@ -6,7 +6,13 @@ import type { DirectoryState } from "../hooks/useDirectory";
 import { CSV_COLUMNS, SAMPLE_CSV, parseUsersCsv } from "../lib/csv";
 import { downloadText } from "../lib/download";
 import { readText } from "../lib/readFile";
-import { planImport, type PlannedRow } from "../lib/importPlan";
+import {
+  csvRoles,
+  csvScanTypes,
+  needsTeamNote,
+  planImport,
+  type PlannedRow,
+} from "../lib/importPlan";
 
 type Props = {
   state: DirectoryState;
@@ -51,33 +57,75 @@ export function ImportPage({ state, picker }: Props) {
       )}
       <section className="panel drop">
         <p className="muted">
-          Columns: <span className="mono">{CSV_COLUMNS.join(", ")}</span>. Email address and roles
-          are required. An empty user name is the email address; empty scan types are All. Separate
-          roles and scan types with <span className="mono">;</span>. Scan types are All, or
-          Container, Discovery, Dynamic Analysis, Infrastructure as Code and Static.
+          Columns: <span className="mono">{CSV_COLUMNS.join(", ")}</span>
         </p>
-        <p className="muted">
-          The import creates new users only: a row whose user name is already used is skipped. Teams
-          can&apos;t be set from a CSV yet, so roles that need a team (Team Admin, and Creator or
-          Submitter without Security Lead) are left out. Give them by hand in the user&apos;s form
-          afterwards.
-        </p>
-        <label className="btn btn-outline">
-          Choose CSV File
-          <input type="file" accept=".csv,text/csv" hidden onChange={pick} aria-label="CSV file" />
-        </label>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={() => downloadText("sample_users.csv", SAMPLE_CSV)}
-        >
-          Download Sample CSV
-        </button>
-        {fileName && <span>{fileName}</span>}
+        <ul className="muted csv-help" aria-label="CSV format">
+          <li>Email address and roles are required.</li>
+          <li>An empty user name is the email address.</li>
+          <li>
+            Roles by their names on the Platform, for example Security Lead. Separate several with{" "}
+            <span className="mono">;</span>.
+          </li>
+          <li>
+            Scan types: empty for All, or one or more of the types listed below, separated with{" "}
+            <span className="mono">;</span>. Only Security Lead, Creator and Submitter take them.
+          </li>
+          <li>
+            The import creates new users only: a row whose user name is already used is skipped.
+          </li>
+          <li>
+            Teams can&apos;t be set from a CSV yet, so roles that need a team are left out. Give
+            them by hand in the user&apos;s form afterwards.
+          </li>
+        </ul>
+        <div className="drop-actions">
+          <label className="btn btn-outline">
+            Choose CSV File
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              hidden
+              onChange={pick}
+              aria-label="CSV file"
+            />
+          </label>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => downloadText("sample_users.csv", SAMPLE_CSV)}
+          >
+            Download Sample CSV
+          </button>
+          {fileName && <span>{fileName}</span>}
+        </div>
         {parsed?.error && (
           <p className="error-text" role="alert">
             {parsed.error}
           </p>
+        )}
+        {ready && (
+          <div className="csv-names">
+            <div>
+              <h3 className="small">Roles</h3>
+              <ul className="small" aria-label="Roles for the CSV">
+                {csvRoles(state.roles).map((r) => (
+                  <li key={r.role_name}>
+                    {r.role_description}
+                    {needsTeamNote(r) && <span className="muted"> ({needsTeamNote(r)})</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <h3 className="small">Scan types</h3>
+              <ul className="small" aria-label="Scan types for the CSV">
+                <li>All (the default)</li>
+                {csvScanTypes(state.roles).map((r) => (
+                  <li key={r.role_name}>{r.role_description}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
         )}
       </section>
 

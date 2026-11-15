@@ -61,11 +61,43 @@ const scanTypes = (written: string[], roles: Role[]): ScanResult => {
   return { give, label: give.map((r) => r.role_description).join(", "), errors: [] };
 };
 
+// A role by its name on the Platform ("Security Lead") or its role name ("extseclead"), ignoring
+// case. A UI role wins over an API role of the same name.
+const roleNamed = (roles: Role[], name: string): Role | undefined => {
+  const n = lower(name);
+  return (
+    roles.find((r) => lower(r.role_name) === n) ??
+    roles.find((r) => !r.is_api && lower(r.role_description) === n) ??
+    roles.find((r) => lower(r.role_description) === n)
+  );
+};
+
+const byDescription = (a: Role, b: Role) => a.role_description.localeCompare(b.role_description);
+
+// The roles a CSV can give, listed on the Import page: not Administrator, API roles, scan types or
+// the API team setting.
+export const csvRoles = (roles: Role[]): Role[] =>
+  roles
+    .filter((r) => r.assignable && !r.is_api && !isScanType(r) && !r.no_team_restriction)
+    .sort(byDescription);
+
+// The specific scan types a CSV can give (All is the default).
+export const csvScanTypes = (roles: Role[]): Role[] =>
+  roles.filter((r) => r.kind === "scan_type" && !r.is_api).sort(byDescription);
+
+// Why a role may be left out of a user created from a CSV, or "".
+export const needsTeamNote = (r: Role): string =>
+  r.kind === "team_admin"
+    ? "left out: needs a team"
+    : TEAM_LEVEL.includes(lower(r.role_name))
+      ? "left out without Security Lead: needs a team"
+      : "";
+
 const planRow = (row: CsvUser, users: User[], roles: Role[], earlier: CsvUser[]): PlannedRow => {
   const errors = [...row.errors];
   const named = row.roles.map((name) => ({
     name,
-    role: roles.find((r) => lower(r.role_name) === lower(name)),
+    role: roleNamed(roles, name),
   }));
   const unknown = named.filter((n) => !n.role).map((n) => n.name);
   if (unknown.length > 0) errors.push(`Unknown roles: ${unknown.join(", ")}`);
