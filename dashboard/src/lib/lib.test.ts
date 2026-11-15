@@ -121,7 +121,34 @@ describe("planImport", () => {
     expect(named?.scanTypes).toBe("Static Scan, Container Scan");
     expect(give(byRole)).toEqual(give(named));
     expect(mixed?.errors).toEqual(["All can't be combined with specific scan types"]);
-    expect(unknown?.errors).toEqual(["Unknown scan types: Quantum"]);
+    expect(unknown?.errors).toEqual([
+      "Unknown scan types: Quantum (this organization's: All, Container Scan, Dynamic Scan, Static Scan)",
+    ]);
+  });
+  it("matches names whatever their spacing, as Veracode's can carry hidden spaces", () => {
+    const spaced = ROLES.map((r) =>
+      r.role_name === "extsubmitcontainerscan"
+        ? { ...r, role_description: "Container Scan " }
+        : r.role_name === "extsubmitstaticscan"
+          ? { ...r, role_description: "Static Scan" }
+          : r.role_name === "extreviewer"
+            ? { ...r, role_description: " Reviewer" }
+            : r,
+    );
+    const [row] = planImport(
+      parseUsersCsv(
+        "email_address,roles,scan_types\na@example.com,Security Lead; reviewer ,Container;  static",
+      ).rows,
+      USERS,
+      spaced,
+    );
+    expect(row?.errors).toEqual([]);
+    expect(row?.give.map((r) => r.role_name)).toEqual([
+      "extseclead",
+      "extreviewer",
+      "extsubmitcontainerscan",
+      "extsubmitstaticscan",
+    ]);
   });
   it("drops scan types when no role takes them, and says so", () => {
     const [row, two, none] = plan(
