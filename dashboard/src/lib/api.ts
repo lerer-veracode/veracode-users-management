@@ -50,6 +50,7 @@ const ROUTES = {
   updateUser: "/api/users/update",
   deleteUser: "/api/users/delete",
   readUser: "/api/users/read",
+  importUsers: "/api/import",
 } as const;
 
 type Route = keyof typeof ROUTES;
@@ -254,6 +255,35 @@ export const readUser = async (connectionId: string, id: string): Promise<User> 
   const data = await call("readUser", "POST", { connection_id: connectionId, id });
   const user = isRecord(data) ? data.user : null;
   return toUser(isRecord(user) ? user : {});
+};
+
+// A CSV import (docs/PLAN_CSV.md, phase 2): the users to create, and what happened to each.
+export type ImportUser = {
+  line: number;
+  email_address: string;
+  user_name: string;
+  first_name: string;
+  last_name: string;
+  roles: string[];
+};
+export type ImportResult = {
+  line: number;
+  user_name: string;
+  status: "created" | "failed";
+  error: string;
+};
+
+export const importUsers = async (
+  connectionId: string,
+  users: ImportUser[],
+): Promise<ImportResult[]> => {
+  const data = await call("importUsers", "POST", { connection_id: connectionId, users });
+  return list(isRecord(data) ? data.results : null).map((r) => ({
+    line: typeof r.line === "number" ? r.line : 0,
+    user_name: str(r.user_name),
+    status: r.status === "created" ? "created" : "failed",
+    error: str(r.error),
+  }));
 };
 
 export const deleteUser = async (

@@ -124,7 +124,7 @@ const planRow = (row: CsvUser, users: User[], roles: Role[], earlier: CsvUser[])
   const kept = roleList.filter((r) => !needsTeam(r));
   if (held.length > 0 && kept.length === 0 && leftOut.length > 0) {
     errors.push(
-      `No role left: ${leftOut.map((r) => r.role_description).join(", ")} need a team, which a CSV can't set yet`,
+      `No role left: ${leftOut.map((r) => r.role_description).join(", ")} ${leftOut.length === 1 ? "needs" : "need"} a team, which a CSV can't set yet`,
     );
   }
 
@@ -144,6 +144,17 @@ const planRow = (row: CsvUser, users: User[], roles: Role[], earlier: CsvUser[])
   }
   const before = name ? earlier.find((r) => lower(r.user_name) === name) : undefined;
   if (before) errors.push(`${row.user_name} is already used on line ${before.line}`);
+  // Veracode refuses a new user whose email is an existing user name (docs/REALITY.md, entry 35).
+  const email = lower(row.email_address);
+  if (email && email !== name) {
+    const owner = users.find((u) => lower(u.user_name) === email);
+    const earlierOwner = earlier.find((r) => lower(r.user_name) === email);
+    if (owner) {
+      errors.push(`Veracode refuses this email: it is the user name of ${fullName(owner)}`);
+    } else if (earlierOwner) {
+      errors.push(`Veracode refuses this email: it is the user name on line ${earlierOwner.line}`);
+    }
+  }
 
   return {
     ...row,

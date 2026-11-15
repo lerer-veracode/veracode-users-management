@@ -192,7 +192,9 @@ test("adds, edits and deletes a user, and never touches an administrator", async
   await expect(log.getByText("Manages teams: — → Blue Team").first()).toBeVisible();
 });
 
-test("import page previews the sample CSV against the real users", async ({ page }) => {
+test("imports the sample CSV: previews it, creates the good rows, reports each", async ({
+  page,
+}) => {
   await signIn(page, "/#/import");
   await page.getByLabel("CSV file").setInputFiles("../data/sample_users.csv");
   await expect(page.getByText("4 to create")).toBeVisible();
@@ -204,9 +206,9 @@ test("import page previews the sample CSV against the real users", async ({ page
   await expect(
     page.getByText("jdoe@example.com is already the user name of Jane Doe, jdoe@example.com"),
   ).toBeVisible();
-  await expect(page.getByText(/No role left: Submitter need a team/)).toBeVisible();
+  await expect(page.getByText(/No role left: Submitter needs a team/)).toBeVisible();
   await expect(page.getByText("Email address is required")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Create 4 Users" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Create 4 Users" })).toBeEnabled();
   await expect(page.getByRole("region", { name: "Chosen file" })).toContainText(
     "File: sample_users.csv · 7 rows",
   );
@@ -214,4 +216,27 @@ test("import page previews the sample CSV against the real users", async ({ page
   const roles = page.getByRole("list", { name: "Roles for the CSV" });
   await expect(roles).toContainText("Reviewer");
   await expect(roles).not.toContainText("Greenlight");
+
+  // Create the four good rows, after a confirmation.
+  await page.getByRole("button", { name: "Create 4 Users" }).click();
+  const dialog = page.getByRole("dialog", { name: "Create 4 users" });
+  await expect(dialog).toContainText("with login enabled and MFA required");
+  await dialog.getByRole("button", { name: "Create 4 users" }).click();
+  const result = page.getByRole("status", { name: "Import result" });
+  await expect(result).toContainText("4 created");
+  await expect(result).toContainText("0 failed");
+  await expect(result).toContainText("3 skipped");
+  await expect(page.getByRole("note", { name: "Roles to give by hand" })).toContainText(
+    "tadmin: Team Admin",
+  );
+
+  // They're on the Users page, and each create is in the Activity log.
+  await page.getByRole("link", { name: "Users" }).click();
+  await page.getByRole("textbox", { name: "Search users" }).fill("mlopez");
+  await expect(page.getByRole("row").filter({ hasText: "mlopez@example.com" })).toContainText(
+    "Security Lead, Creator",
+  );
+  await page.getByRole("link", { name: "Activity" }).click();
+  await expect(page.getByText("import mlopez (line 4)").first()).toBeVisible();
+  await expect(page.getByText("import tadmin (line 5)").first()).toBeVisible();
 });

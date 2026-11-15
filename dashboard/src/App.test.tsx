@@ -50,6 +50,8 @@ type FakeState = {
   // What the dashboard sent to each change route, and an error to answer with.
   sent: { path: string; body: unknown }[];
   changeError: string;
+  // An import's refusals by line; every other row sent is created.
+  importFails: Record<number, string>;
 };
 
 // An in-memory stand-in for the backend's /api routes.
@@ -65,6 +67,7 @@ const fakeBackend = () => {
     detailsGate: null,
     sent: [],
     changeError: "",
+    importFails: {},
     connections: [
       {
         id: "c1",
@@ -180,6 +183,22 @@ const fakeBackend = () => {
             ? { connection, teams: state.teams }
             : { connection, roles: ROLES },
       );
+    }
+    if (path === "/api/import") {
+      const body: unknown = JSON.parse(String(init?.body));
+      state.sent.push({ path, body });
+      const users =
+        typeof body === "object" && body !== null && "users" in body && Array.isArray(body.users)
+          ? (body.users as { line: number; user_name: string }[])
+          : [];
+      return reply(200, {
+        results: users.map((u) => {
+          const error = state.importFails[u.line];
+          return error
+            ? { line: u.line, user_name: u.user_name, status: "failed", error }
+            : { line: u.line, user_name: u.user_name, status: "created" };
+        }),
+      });
     }
     if (path === "/api/users/read") {
       const body: unknown = JSON.parse(String(init?.body));
@@ -994,7 +1013,7 @@ describe("import page", () => {
     expect(
       within(screen.getByRole("note", { name: "Roles left out" })).getByText("tadmin: Team Admin"),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Create 2 Users" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Create 2 Users" })).toBeEnabled();
     // The instructions open again on request: the names a CSV can use, with the roles a
     // team-less import leaves out.
     await user.click(within(bar).getByRole("button", { name: "Show instructions" }));
@@ -1009,6 +1028,80 @@ describe("import page", () => {
     expect(
       within(screen.getByRole("list", { name: "CSV format" })).getAllByRole("listitem"),
     ).toHaveLength(6);
+  });
+
+  it("creates the users after a confirmation, and reports each row", async () => {
+    const user = userEvent.setup();
+    backend.state.importFails = { 3: "Creating the user failed (400): User already exists" };
+    await go("#/import");
+    await user.upload(screen.getByLabelText("CSV file"), new File([csv], "users.csv"));
+    await user.click(await screen.findByRole("button", { name: "Create 2 Users" }));
+    const dialog = screen.getByRole("dialog", { name: "Create 2 users" });
+    expect(dialog).toHaveTextContent("acme (US)");
+    expect(dialog).toHaveTextContent("with login enabled and MFA required");
+    expect(dialog).toHaveTextContent("1 row has errors and will be skipped");
+    const listed = within(dialog).getByRole("list", { name: "Users to create" });
+    expect(listed).toHaveTextContent("Scan types: Static Scan, Container Scan");
+    expect(listed).toHaveTextContent("Left out, needs a team: Team Admin");
+    // Nothing is sent before the confirmation; Cancel sends nothing.
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(backend.state.sent).toEqual([]);
+
+    await user.click(screen.getByRole("button", { name: "Create 2 Users" }));
+    await user.click(
+      within(screen.getByRole("dialog", { name: "Create 2 users" })).getByRole("button", {
+        name: "Create 2 users",
+      }),
+    );
+    expect(await screen.findByText("1 created")).toBeInTheDocument();
+    expect(backend.state.sent).toEqual([
+      {
+        path: "/api/import",
+        body: {
+          connection_id: "c1",
+          users: [
+            {
+              line: 3,
+              email_address: "new@example.com",
+              user_name: "new",
+              first_name: "New",
+              last_name: "Person",
+              roles: ["extseclead", "extsubmitstaticscan", "extsubmitcontainerscan"],
+            },
+            {
+              line: 4,
+              email_address: "tadmin@example.com",
+              user_name: "tadmin",
+              first_name: "Tal",
+              last_name: "Admin",
+              roles: ["extreviewer"],
+            },
+          ],
+        },
+      },
+    ]);
+    expect(screen.getByText("1 failed")).toBeInTheDocument();
+    expect(screen.getByText("1 skipped")).toBeInTheDocument();
+    const report = screen.getByRole("region", { name: "Import report" });
+    expect(within(report).getByRole("row", { name: /new@example.com/ })).toHaveTextContent(
+      "Failed",
+    );
+    expect(within(report).getByRole("row", { name: /new@example.com/ })).toHaveTextContent(
+      "User already exists",
+    );
+    expect(within(report).getByRole("row", { name: /dcohen@example.com/ })).toHaveTextContent(
+      "Skipped",
+    );
+    expect(
+      within(screen.getByRole("note", { name: "Roles to give by hand" })).getByText(
+        "tadmin: Team Admin",
+      ),
+    ).toBeInTheDocument();
+
+    // Import Another File starts over, with the instructions open.
+    await user.click(screen.getByRole("button", { name: "Import Another File" }));
+    expect(screen.queryByRole("region", { name: "Import report" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Instructions" })).toBeInTheDocument();
   });
 
   it("offers the sample CSV as a link", async () => {

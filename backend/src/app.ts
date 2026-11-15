@@ -61,6 +61,15 @@ export type AppDeps = {
 };
 
 const COOKIE = "um_session";
+// The most users one CSV import creates, so an import can't run for too long.
+const IMPORT_LIMIT = 200;
+
+type ImportResult = {
+  line: number;
+  user_name: string;
+  status: "created" | "failed";
+  error?: string;
+};
 
 const describeCleanup = (report: CleanupReport): string[] => [
   ...report.removedUsers.map((u) => `Removed app user ${u}: no sign-in for ${MAX_AGE_DAYS} days.`),
@@ -618,6 +627,86 @@ export const createApp = (deps: AppDeps) => {
         changed(conn, created?.user_id ?? "", created);
         return c.json({ user: created && withLock(created), user_name: user.user_name });
       });
+    } catch (e) {
+      return veracodeFailure(c, conn, e);
+    }
+  });
+
+  // A CSV import (docs/PLAN_CSV.md, phase 2): new users only, one by one, each checked by the same
+  // rules as the form and logged as its own create. A row that fails doesn't stop the others.
+  app.post("/import", async (c) => {
+    const t = await target(c);
+    if (t instanceof Response) return t;
+    const { conn, body } = t;
+    const rows = bodyField(body, "users");
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return c.json({ error: "Send the users to create." }, 400);
+    }
+    if (rows.length > IMPORT_LIMIT) {
+      return c.json({ error: `A file can create at most ${IMPORT_LIMIT} users at once.` }, 400);
+    }
+    try {
+      return await withAudit(
+        { connection: ref(conn), purpose: "Import users from CSV" },
+        async () => {
+          const wanted = rows.flatMap((r) =>
+            isRecord(r) && Array.isArray(r.roles) ? r.roles : [],
+          );
+          const org = withoutHiddenRoles(await readOrg(conn, { roles: wanted }));
+          // User names already used: the kept list, and those this import creates. Veracode
+          // refuses a new user whose user name, or email, is an existing user name (entry 35).
+          const hit = cache.get(`users:${conn.id}`);
+          const taken = new Set(
+            (Array.isArray(hit?.value) ? (hit.value as Listed[]) : []).map((u) =>
+              u.user_name.toLowerCase(),
+            ),
+          );
+          const results: ImportResult[] = [];
+          for (const row of rows) {
+            const line = isRecord(row) && typeof row.line === "number" ? row.line : 0;
+            const named = isRecord(row) && typeof row.user_name === "string" ? row.user_name : "";
+            const checked = checkNewUser(
+              isRecord(row) ? { ...row, teams: [], pin_required: true } : row,
+              org,
+            );
+            if (!checked.ok) {
+              results.push({ line, user_name: named, status: "failed", error: checked.error });
+              continue;
+            }
+            const user = checked.value;
+            const fail = (error: string) =>
+              results.push({ line, user_name: user.user_name, status: "failed", error });
+            if (taken.has(user.user_name.toLowerCase())) {
+              fail(`${user.user_name} is already a user name in this organization.`);
+              continue;
+            }
+            if (taken.has(user.email_address.toLowerCase())) {
+              fail(
+                `${user.email_address} is already a user name; Veracode refuses it as an email.`,
+              );
+              continue;
+            }
+            const audited = {
+              reason: `import ${user.user_name} (line ${line})`,
+              target: { user_name: user.user_name },
+              changes: describeCreate(user, org),
+            };
+            try {
+              const created = await withAudit(audited, () =>
+                createUser(conn, tokens, veracode, user),
+              );
+              changed(conn, created?.user_id ?? "", created);
+              taken.add(user.user_name.toLowerCase());
+              results.push({ line, user_name: user.user_name, status: "created" });
+            } catch (e) {
+              const res = veracodeFailure(c, conn, e);
+              const answer = (await res.json()) as { error?: string };
+              fail(answer.error ?? "Veracode refused it.");
+            }
+          }
+          return c.json({ results });
+        },
+      );
     } catch (e) {
       return veracodeFailure(c, conn, e);
     }

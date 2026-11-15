@@ -69,7 +69,9 @@ export function SignedInApp({ username, notices, now, onSignOut, onUnauthorized 
           onUnauthorized={onUnauthorized}
         />
       )}
-      {route === "import" && <ImportPage state={directory.state} picker={picker} />}
+      {route === "import" && (
+        <ImportPage state={directory.state} reload={directory.reload} picker={picker} />
+      )}
       {route === "activity" && <ActivityPage onUnauthorized={onUnauthorized} now={now} />}
       {route === "connections" && (
         <ConnectionsPage

@@ -71,19 +71,36 @@ describe("planImport", () => {
 
   it("creates new users only, and names who has a user name already", () => {
     const u = USERS[1];
-    if (!u) throw new Error("mock data");
+    // An account whose user name isn't its email.
+    const api = USERS.find((x) => x.user_name !== x.email_address);
+    if (!u || !api) throw new Error("mock data");
     const [taken, upper, fresh] = plan(
       `,${u.user_name},extreviewer,`,
       `${u.user_name.toUpperCase()},new@example.com,extreviewer,`,
-      `new,${u.email_address},extreviewer,`,
+      `new,${api.email_address},extreviewer,`,
     );
     expect(taken?.action).toBe("Error");
     expect(taken?.errors).toEqual([
       `${u.user_name} is already the user name of ${u.first_name} ${u.last_name}, ${u.email_address}`,
     ]);
     expect(upper?.action).toBe("Error");
-    // Several users may share an email address: a new user name is a new user.
+    // Several users may share an email address, unless it is someone's user name: a new user
+    // name is a new user.
     expect(fresh?.action).toBe("Create");
+  });
+  it("refuses an email that is already a user name, as Veracode does", () => {
+    const u = USERS[1];
+    if (!u) throw new Error("mock data");
+    const [taken, earlier, refused] = plan(
+      `other,${u.user_name},extreviewer,`,
+      "x@example.com,x@example.com,extreviewer,",
+      "y,x@example.com,extreviewer,",
+    );
+    expect(taken?.errors).toEqual([
+      `Veracode refuses this email: it is the user name of ${u.first_name} ${u.last_name}`,
+    ]);
+    expect(earlier?.action).toBe("Create");
+    expect(refused?.errors).toEqual(["Veracode refuses this email: it is the user name on line 3"]);
   });
   it("refuses a user name used twice in the file", () => {
     const [, second] = plan("x,x@example.com,extreviewer,", "X,y@example.com,extreviewer,");
@@ -158,7 +175,7 @@ describe("planImport", () => {
     expect(give(withLead)).toEqual(["extseclead", "extcreator", "extsubmitstaticscan"]);
     expect(onlyTeam?.action).toBe("Error");
     expect(onlyTeam?.errors).toEqual([
-      "No role left: Team Admin need a team, which a CSV can't set yet",
+      "No role left: Team Admin needs a team, which a CSV can't set yet",
     ]);
   });
   it("accepts every row of the sample offered for download", () => {

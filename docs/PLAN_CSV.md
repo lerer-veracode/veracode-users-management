@@ -54,17 +54,18 @@ Success criteria:
 
 ## Phase 2: apply the import
 
-- **Apply N users:** opens a confirmation that lists the users to create, the roles left out, and the organization (connection, region). Rows with errors are left out and listed as skipped.
-- Each user is created with login enabled and MFA required, as the add form does by default; the CSV has no column for them.
-- **`POST /api/import`** takes the rows. For each, it checks with the same rules as `POST /api/users` (`checkNewUser`), leaves out the roles that need a team, and refuses a user name already taken. It reads the user names fresh from Veracode first, and creates the users one by one. A refusal by Veracode on one row doesn't stop the others. Each create is in the Activity log as with the form, with "Import from CSV" as its reason.
-- The page then reports each row: Created, Created without some roles (which), or Failed with Veracode's message or the rule it broke. Above it: "Users X, Y were created without roles that need a team (…): give them by hand in the form." The users list reloads.
-- At most 200 rows per file, so one import can't run for too long.
+- **Create N Users:** opens a confirmation that names the organization (connection, region), says each user gets login enabled and MFA required, lists the users with their roles, scan types and the roles left out, and says how many rows will be skipped for errors.
+- Each user is created with login enabled and MFA required, as the add form does by default; the CSV has no column for them (the administrator, 2026-11-15).
+- **`POST /api/import`** takes the users to create, with the roles the preview chose (team-bound roles already left out). For each, it checks the same rules as `POST /api/users/create` (`checkNewUser`, hidden roles refused), and refuses a user name, or an email, that's already a user name in the kept users list or earlier in the import (Veracode refuses an email that's a user name, `docs/REALITY.md` entry 35). It doesn't read every user again: Veracode refuses a user name already used, and that refusal is reported like any other. It creates the users one by one; a refusal on one row doesn't stop the others. Each create is in the Activity log as with the form, with "Import users from CSV" as its purpose and "import <user name> (line N)" as its reason.
+- The page then reports each row: Created, Failed with Veracode's message or the rule it broke, or Skipped (an error in the preview, never sent). Above it, the users created without roles that need a team, and which, to give by hand. The users list reloads. Import Another File starts over.
+- The preview also flags an email that is already a user name, in the organization or earlier in the file (entry 35).
+- At most 200 users per import, so one import can't run for too long.
 
 Success criteria:
 
-- [ ] Backend tests (stubbed `fetch`): good rows are created in order; team-bound roles are left out of what's sent and reported; a row Veracode refuses is reported with its message and the next row still goes; an Administrator or API role, or a user name taken since the preview, is refused before sending; over 200 rows is refused.
-- [ ] Dashboard test: the confirmation names the organization, the users and the roles left out; the report shows Created, Created without some roles, and Failed rows.
-- [ ] Playwright against the local stand-in: importing the sample creates four users, which then show on the Users page, one without its team-bound role, and reports the three bad rows; the Activity page shows the four creates.
+- [x] Backend tests (stubbed `fetch`): good rows are created in order, each with MFA required and login enabled; a row Veracode refuses is reported with its message and the next row still goes; an Administrator role, or a role combination that needs a team, is refused before sending; a user name, or an email, that's already a user name (in the kept list or earlier in the import) is refused before sending; none, or over 200, is refused; another connection is refused.
+- [x] Dashboard tests: the confirmation names the organization, MFA, the users, their scan types and the roles left out, and nothing is sent before it; the report shows Created, Failed and Skipped rows and the roles to give by hand; Import Another File starts over. The preview refuses an email that's a user name.
+- [x] Playwright against the local stand-in: importing the sample creates four users, one without its team-bound role (named in the report), and skips the three bad rows; a created user shows on the Users page, and the Activity page shows the creates.
 
 ## Phase 3: export
 

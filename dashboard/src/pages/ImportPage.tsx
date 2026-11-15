@@ -1,9 +1,12 @@
 import { useState, type ChangeEvent, type ComponentProps } from "react";
 import { ConnectionPicker } from "../components/ConnectionPicker";
+import { ImportConfirmDialog } from "../components/ImportConfirmDialog";
+import { ImportReport } from "../components/ImportReport";
 import { PageHeader } from "../components/PageHeader";
 import { StatusPill } from "../components/StatusPill";
 import type { DirectoryState } from "../hooks/useDirectory";
 import { CSV_COLUMNS, SAMPLE_CSV, parseUsersCsv } from "../lib/csv";
+import { importUsers, type ImportResult } from "../lib/api";
 import { readText } from "../lib/readFile";
 import {
   csvRoles,
@@ -15,6 +18,8 @@ import {
 
 type Props = {
   state: DirectoryState;
+  // Reads the users again after an import, so every page shows the new ones.
+  reload: () => Promise<void>;
   picker: Omit<ComponentProps<typeof ConnectionPicker>, "what">;
 };
 
@@ -24,11 +29,16 @@ const SAMPLE_HREF = `data:text/csv;charset=utf-8,${encodeURIComponent(SAMPLE_CSV
 const names = (list: { role_description: string }[]) =>
   list.map((r) => r.role_description).join(", ");
 
-export function ImportPage({ state, picker }: Props) {
+export function ImportPage({ state, reload, picker }: Props) {
   const [fileName, setFileName] = useState("");
   const [text, setText] = useState("");
   // The instructions fold away once a file is read, leaving the page to its users.
   const [helpOpen, setHelpOpen] = useState(true);
+  const [confirming, setConfirming] = useState(false);
+  // What the import did, with the preview's rows as they were when it ran.
+  const [report, setReport] = useState<{ results: ImportResult[]; plan: PlannedRow[] } | null>(
+    null,
+  );
 
   const ready = state.status === "ready";
   const parsed = text ? parseUsersCsv(text) : null;
@@ -43,9 +53,33 @@ export function ImportPage({ state, picker }: Props) {
     if (!file) return;
     setFileName(file.name);
     setText(await readText(file));
+    setReport(null);
     setHelpOpen(false);
     // The same file can be chosen again after it's changed.
     e.target.value = "";
+  };
+  const apply = async () => {
+    if (state.status !== "ready") return;
+    const results = await importUsers(
+      state.source.id,
+      creates.map((p) => ({
+        line: p.line,
+        email_address: p.email_address,
+        user_name: p.user_name,
+        first_name: p.first_name,
+        last_name: p.last_name,
+        roles: p.give.map((r) => r.role_name),
+      })),
+    );
+    setReport({ results, plan });
+    setConfirming(false);
+    void reload();
+  };
+  const startOver = () => {
+    setReport(null);
+    setText("");
+    setFileName("");
+    setHelpOpen(true);
   };
   const loaded = parsed !== null && !parsed.error;
   const showHelp = helpOpen || !loaded;
@@ -158,7 +192,9 @@ export function ImportPage({ state, picker }: Props) {
         </section>
       )}
 
-      {plan.length > 0 && (
+      {report && <ImportReport results={report.results} plan={report.plan} onDone={startOver} />}
+
+      {!report && plan.length > 0 && (
         <>
           <div className="summary">
             <StatusPill tone="info">{`${creates.length} to create`}</StatusPill>
@@ -230,12 +266,30 @@ export function ImportPage({ state, picker }: Props) {
             </table>
           </section>
           <div className="toolbar spaced">
-            <span className="muted">Applying the import comes in the next phase.</span>
-            <button type="button" className="btn btn-primary" disabled>
-              Create {creates.length} Users
+            <span className="muted">
+              {creates.length === 0
+                ? "No row can be created: fix the file and choose it again."
+                : "Each user is created with login enabled and MFA required."}
+            </span>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={creates.length === 0}
+              onClick={() => setConfirming(true)}
+            >
+              Create {creates.length} {creates.length === 1 ? "User" : "Users"}
             </button>
           </div>
         </>
+      )}
+      {confirming && state.status === "ready" && (
+        <ImportConfirmDialog
+          source={state.source}
+          creates={creates}
+          skipped={errors.length}
+          onConfirm={apply}
+          onCancel={() => setConfirming(false)}
+        />
       )}
     </main>
   );
