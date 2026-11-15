@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ROLES, USERS } from "../mock/data";
 import { SAMPLE_CSV, parseUsersCsv } from "./csv";
+import { exportFileName, usersCsv } from "./exportCsv";
 import { formatDateTime, fullName } from "./format";
 import { csvRoles, csvScanTypes, needsTeamNote, planImport } from "./importPlan";
 import { EMPTY_FILTERS, filterUsers, pageCount, pageOf, sortUsers, userStatus } from "./users";
@@ -198,6 +199,47 @@ describe("planImport", () => {
     expect(admin?.errors).toEqual(["The app never gives the Administrator role"]);
     expect(api?.errors).toEqual(["The app never gives API roles: Upload API"]);
     expect(scan?.errors).toEqual(["Scan types go in the scan_types column: Any Scan"]);
+  });
+});
+
+describe("usersCsv", () => {
+  const byName = (name: string) => {
+    const u = USERS.find((x) => x.user_name === name);
+    if (!u) throw new Error(`mock user ${name}`);
+    return u;
+  };
+
+  it("writes the users in the import's format, email first", () => {
+    const users = ["dcohen@example.com", "kmensah@example.com", "api_rreader", "mwebb@example.com"];
+    const lines = usersCsv(users.map(byName), ROLES).trimEnd().split("\n");
+    expect(lines).toEqual([
+      "email_address,user_name,first_name,last_name,roles,scan_types",
+      "dcohen@example.com,dcohen@example.com,Dana,Cohen,Security Lead,All",
+      "kmensah@example.com,kmensah@example.com,Kofi,Mensah,Submitter,Static Scan;Container Scan",
+      "rreader@example.com,api_rreader,Results,Reader,Results API,",
+      "mwebb@example.com,mwebb@example.com,Marcus,Webb,Reviewer,",
+    ]);
+  });
+  it("quotes commas and quotes, and keeps a cell from running as a formula", () => {
+    const u = { ...byName("mwebb@example.com"), first_name: 'Jo, "J"', last_name: "=SUM(A1)" };
+    const [, line] = usersCsv([u], ROLES).split("\n");
+    expect(line).toBe('mwebb@example.com,mwebb@example.com,"Jo, ""J""",\'=SUM(A1),Reviewer,');
+  });
+  it("reads back with the import's parser, every row already a user", () => {
+    const users = USERS.filter((u) => u.user_type === "UI").slice(0, 5);
+    const rows = parseUsersCsv(usersCsv(users, ROLES)).rows;
+    expect(rows.map((r) => r.user_name)).toEqual(users.map((u) => u.user_name));
+    const plan = planImport(rows, USERS, ROLES);
+    expect(plan.every((p) => p.errors.some((e) => e.includes("is already the user name of")))).toBe(
+      true,
+    );
+  });
+  it("names the file after the connection and the day", () => {
+    expect(exportFileName("acme", new Date(2026, 10, 5))).toBe("users-acme-2026-11-05.csv");
+    expect(exportFileName("My Org / EU", new Date(2026, 0, 15))).toBe(
+      "users-My-Org-EU-2026-01-15.csv",
+    );
+    expect(exportFileName("///", new Date(2026, 0, 15))).toBe("users-users-2026-01-15.csv");
   });
 });
 

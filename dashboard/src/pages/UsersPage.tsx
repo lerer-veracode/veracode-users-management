@@ -22,6 +22,8 @@ import {
   type UserFilters,
 } from "../lib/users";
 import type { User } from "../types";
+import { downloadText } from "../lib/download";
+import { exportFileName, usersCsv } from "../lib/exportCsv";
 
 type Props = {
   state: DirectoryState;
@@ -50,6 +52,14 @@ export function UsersPage({ state, reload, refreshTeams, picker, onUnauthorized 
   const users = state.status === "ready" ? state.users : [];
   const roles = state.status === "ready" ? state.roles : [];
   const visible = sortUsers(filterUsers(users, filters, roles), sort);
+
+  // Saves the users the filters show, every page, in the import format (docs/PLAN_CSV.md).
+  const exportUsers = () => {
+    if (state.status !== "ready") return;
+    const name = exportFileName(state.source.name, new Date());
+    downloadText(name, usersCsv(visible, roles));
+    setNotice(`Exported ${visible.length} ${visible.length === 1 ? "user" : "users"} to ${name}.`);
+  };
 
   const changeFilters = (f: UserFilters) => {
     setFilters(f);
@@ -133,7 +143,11 @@ export function UsersPage({ state, reload, refreshTeams, picker, onUnauthorized 
           items={[
             { label: "Refresh", onSelect: () => void reload(true) },
             { label: "Import from CSV", onSelect: () => (window.location.hash = "#/import") },
-            { label: "Export to CSV", onSelect: () => setNotice("Export is not built yet.") },
+            {
+              label: "Export to CSV",
+              onSelect: exportUsers,
+              disabled: state.status === "ready" ? undefined : "The users are still loading.",
+            },
           ]}
           trigger={(toggle) => (
             <button type="button" className="btn btn-secondary" onClick={toggle}>

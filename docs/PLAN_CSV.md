@@ -69,15 +69,15 @@ Success criteria:
 
 ## Phase 3: export
 
-- **Export CSV** on the Users page downloads the users shown by the current filters, all pages, in the import format: user name, email, names, roles (without scan types or the team setting), and scan types (`All` or the types by name, empty for a user who needs none).
+- **Export to CSV**, in the Users page's Actions menu, downloads the users shown by the current filters, all pages, in the import format: email, user name, names, roles by their Platform names (without scan types or the team setting), and scan types (`All` or the types by name, empty for a user who has none). A cell that a spreadsheet would run as a formula (starting with `=`, `+`, `-`, `@`, a tab or a return) starts with `'`, so opening the file can't run anything.
 - The file name says the connection and the date, for example `users-acme-2026-11-15.csv`.
 
 Success criteria:
 
-- [ ] Dashboard test: the export of a filtered list has a header and one row per user shown, with roles and scan types as above; names with commas or quotes are escaped.
-- [ ] The exported file, read back by the import's parser, gives the same users and roles (every row then fails as "already used", since the import creates only).
-- [ ] Playwright against the local stand-in: Export CSV downloads a file with the users shown.
-- [ ] `npm run check` passes.
+- [x] Dashboard test: the export has a header and one row per user shown, with roles and scan types as above; names with commas or quotes are escaped, and a formula is made safe. The Actions menu exports all 23 mock users and names the file.
+- [x] The exported file, read back by the import's parser, gives the same users (every row then fails as "already the user name of", since the import creates only).
+- [x] Playwright against the local stand-in: Export to CSV, with a search filter, downloads a file with the user shown, named after the connection and the date.
+- [x] `npm run check` passes.
 
 ## Phase 4: check on the real organization (administrator, only when asked)
 

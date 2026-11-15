@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
 import { E2E_PASSWORD, E2E_USER } from "../settings.js";
 
@@ -236,6 +237,19 @@ test("imports the sample CSV: previews it, creates the good rows, reports each",
   await expect(page.getByRole("row").filter({ hasText: "mlopez@example.com" })).toContainText(
     "Security Lead, Creator",
   );
+  // Export saves the users shown, in the import format.
+  await page.getByRole("button", { name: "Actions", exact: true }).click();
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("menuitem", { name: "Export to CSV" }).click(),
+  ]);
+  expect(download.suggestedFilename()).toMatch(/^users-[\w.-]+-\d{4}-\d{2}-\d{2}\.csv$/);
+  const path = await download.path();
+  const text = readFileSync(path, "utf8");
+  expect(text.split("\n").slice(0, 2)).toEqual([
+    "email_address,user_name,first_name,last_name,roles,scan_types",
+    "mlopez@example.com,mlopez,Maria,Lopez,Security Lead;Creator,Static Scan;Container Scan",
+  ]);
   await page.getByRole("link", { name: "Activity" }).click();
   await expect(page.getByText("import mlopez (line 4)").first()).toBeVisible();
   await expect(page.getByText("import tadmin (line 5)").first()).toBeVisible();

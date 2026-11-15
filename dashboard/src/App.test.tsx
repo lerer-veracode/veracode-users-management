@@ -908,8 +908,23 @@ describe("users page", () => {
     await user.click(screen.getByRole("menuitem", { name: "Refresh" }));
     expect(await screen.findByText("1-10 of 23")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Actions" }));
+    // Export saves the users the filters show, every page.
+    const saved: Blob[] = [];
+    URL.createObjectURL = vi.fn((blob: Blob) => {
+      saved.push(blob);
+      return "blob:users";
+    });
+    URL.revokeObjectURL = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     await user.click(screen.getByRole("menuitem", { name: "Export to CSV" }));
-    expect(screen.getByRole("status")).toHaveTextContent("Export is not built yet.");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      /^Exported 23 users to users-acme-\d{4}-\d{2}-\d{2}\.csv\.$/,
+    );
+    expect(click.mock.contexts[0]).toMatchObject({
+      download: expect.stringMatching(/^users-acme-/) as unknown,
+    });
+    expect(saved).toHaveLength(1);
+    click.mockRestore();
     await user.click(screen.getByRole("button", { name: "Actions" }));
     await user.click(screen.getByRole("menuitem", { name: "Import from CSV" }));
     expect(window.location.hash).toBe("#/import");
