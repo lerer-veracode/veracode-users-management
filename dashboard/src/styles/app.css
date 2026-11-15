@@ -940,6 +940,15 @@ fieldset.field {
   gap: 4px;
 }
 
+.file-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+}
+
 .drop-actions {
   display: flex;
   flex-wrap: wrap;

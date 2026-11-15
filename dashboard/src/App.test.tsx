@@ -2,7 +2,6 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
-import { readText } from "./lib/readFile";
 import { ROLES, TEAMS, USERS } from "./mock/data";
 import type { Connection, User } from "./types";
 
@@ -964,18 +963,25 @@ describe("choosing the connection", () => {
 
 describe("import page", () => {
   const csv = [
-    "user_name,email_address,first_name,last_name,roles,scan_types",
-    ",dcohen@example.com,Dana,Cohen,extseclead,",
-    "new,new@example.com,New,Person,extseclead,Static;Container",
-    "tadmin,tadmin@example.com,Tal,Admin,teamAdmin;extreviewer,",
+    "email_address,user_name,first_name,last_name,roles,scan_types",
+    "dcohen@example.com,,Dana,Cohen,extseclead,",
+    "new@example.com,new,New,Person,extseclead,Static;Container",
+    "tadmin@example.com,tadmin,Tal,Admin,teamAdmin;extreviewer,",
   ].join("\n");
 
   it("previews a CSV against the real users and roles; applying comes next", async () => {
     const user = userEvent.setup();
     await go("#/import");
+    // Before a file, the instructions show, with the names a CSV can use.
+    expect(screen.getByRole("list", { name: "CSV format" })).toBeInTheDocument();
+    await screen.findByRole("list", { name: "Roles for the CSV" });
     await user.upload(screen.getByLabelText("CSV file"), new File([csv], "users.csv"));
-    expect(await screen.findByText("users.csv")).toBeInTheDocument();
     expect(await screen.findByText("2 to create")).toBeInTheDocument();
+    // Then they fold away, leaving the file's name and the users.
+    const bar = screen.getByRole("region", { name: "Chosen file" });
+    expect(bar).toHaveTextContent("File: users.csv · 3 rows");
+    expect(screen.queryByRole("region", { name: "Instructions" })).toBeNull();
+    expect(within(bar).getByLabelText("CSV file")).toBeInTheDocument();
     expect(screen.getByText("1 without some roles")).toBeInTheDocument();
     expect(screen.getByText("1 with errors")).toBeInTheDocument();
     expect(
@@ -989,7 +995,9 @@ describe("import page", () => {
       within(screen.getByRole("note", { name: "Roles left out" })).getByText("tadmin: Team Admin"),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create 2 Users" })).toBeDisabled();
-    // The names a CSV can use, with the roles a team-less import leaves out.
+    // The instructions open again on request: the names a CSV can use, with the roles a
+    // team-less import leaves out.
+    await user.click(within(bar).getByRole("button", { name: "Show instructions" }));
     const roles = screen.getByRole("list", { name: "Roles for the CSV" });
     expect(within(roles).getByText(/^Creator/)).toHaveTextContent(
       "Creator (left out without Security Lead: needs a team)",
@@ -1003,23 +1011,15 @@ describe("import page", () => {
     ).toHaveLength(6);
   });
 
-  it("downloads the sample CSV", async () => {
-    const user = userEvent.setup();
-    const saved: Blob[] = [];
-    URL.createObjectURL = vi.fn((blob: Blob) => {
-      saved.push(blob);
-      return "blob:sample";
-    });
-    URL.revokeObjectURL = vi.fn();
-    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  it("offers the sample CSV as a link", async () => {
     await go("#/import");
-    await user.click(screen.getByRole("button", { name: "Download Sample CSV" }));
-    expect(click).toHaveBeenCalledTimes(1);
-    expect(click.mock.contexts[0]).toMatchObject({ download: "sample_users.csv" });
-    expect(saved[0] && (await readText(saved[0]))).toMatch(
-      /^user_name,email_address,first_name,last_name,roles,scan_types\n/,
+    const link = screen.getByRole("link", { name: "sample CSV" });
+    expect(link).toHaveAttribute("download", "users-import-sample.csv");
+    const href = link.getAttribute("href") ?? "";
+    expect(href.startsWith("data:text/csv;charset=utf-8,")).toBe(true);
+    expect(decodeURIComponent(href.slice(href.indexOf(",") + 1))).toMatch(
+      /^email_address,user_name,first_name,last_name,roles,scan_types\n/,
     );
-    click.mockRestore();
   });
 
   it("reports a file with missing columns, and a Veracode error", async () => {

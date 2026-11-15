@@ -4,7 +4,6 @@ import { PageHeader } from "../components/PageHeader";
 import { StatusPill } from "../components/StatusPill";
 import type { DirectoryState } from "../hooks/useDirectory";
 import { CSV_COLUMNS, SAMPLE_CSV, parseUsersCsv } from "../lib/csv";
-import { downloadText } from "../lib/download";
 import { readText } from "../lib/readFile";
 import {
   csvRoles,
@@ -19,12 +18,17 @@ type Props = {
   picker: Omit<ComponentProps<typeof ConnectionPicker>, "what">;
 };
 
+// The sample offered for download, as a link the browser saves.
+const SAMPLE_HREF = `data:text/csv;charset=utf-8,${encodeURIComponent(SAMPLE_CSV)}`;
+
 const names = (list: { role_description: string }[]) =>
   list.map((r) => r.role_description).join(", ");
 
 export function ImportPage({ state, picker }: Props) {
   const [fileName, setFileName] = useState("");
   const [text, setText] = useState("");
+  // The instructions fold away once a file is read, leaving the page to its users.
+  const [helpOpen, setHelpOpen] = useState(true);
 
   const ready = state.status === "ready";
   const parsed = text ? parseUsersCsv(text) : null;
@@ -39,7 +43,18 @@ export function ImportPage({ state, picker }: Props) {
     if (!file) return;
     setFileName(file.name);
     setText(await readText(file));
+    setHelpOpen(false);
+    // The same file can be chosen again after it's changed.
+    e.target.value = "";
   };
+  const loaded = parsed !== null && !parsed.error;
+  const showHelp = helpOpen || !loaded;
+  const chooser = (label: string) => (
+    <label className="btn btn-outline">
+      {label}
+      <input type="file" accept=".csv,text/csv" hidden onChange={pick} aria-label="CSV file" />
+    </label>
+  );
 
   return (
     <main className="page">
@@ -55,79 +70,93 @@ export function ImportPage({ state, picker }: Props) {
           {state.message}
         </div>
       )}
-      <section className="panel drop">
-        <p className="muted">
-          Columns: <span className="mono">{CSV_COLUMNS.join(", ")}</span>
-        </p>
-        <ul className="muted csv-help" aria-label="CSV format">
-          <li>Email address and roles are required.</li>
-          <li>An empty user name is the email address.</li>
-          <li>
-            Roles by their names on the Platform, for example Security Lead. Separate several with{" "}
-            <span className="mono">;</span>.
-          </li>
-          <li>
-            Scan types: empty for All, or one or more of the types listed below, separated with{" "}
-            <span className="mono">;</span>. Only Security Lead, Creator and Submitter take them.
-          </li>
-          <li>
-            The import creates new users only: a row whose user name is already used is skipped.
-          </li>
-          <li>
-            Teams can&apos;t be set from a CSV yet, so roles that need a team are left out. Give
-            them by hand in the user&apos;s form afterwards.
-          </li>
-        </ul>
-        <div className="drop-actions">
-          <label className="btn btn-outline">
-            Choose CSV File
-            <input
-              type="file"
-              accept=".csv,text/csv"
-              hidden
-              onChange={pick}
-              aria-label="CSV file"
-            />
-          </label>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => downloadText("sample_users.csv", SAMPLE_CSV)}
-          >
-            Download Sample CSV
-          </button>
-          {fileName && <span>{fileName}</span>}
-        </div>
-        {parsed?.error && (
-          <p className="error-text" role="alert">
-            {parsed.error}
+      {loaded && (
+        <section className="panel file-bar" aria-label="Chosen file">
+          <span>
+            File: <strong>{fileName}</strong>
+            <span className="muted">
+              {" "}
+              · {parsed.rows.length} {parsed.rows.length === 1 ? "row" : "rows"}
+            </span>
+          </span>
+          <span className="drop-actions">
+            {!showHelp && chooser("Choose Another File")}
+            <button
+              type="button"
+              className="link"
+              aria-expanded={showHelp}
+              onClick={() => setHelpOpen(!helpOpen)}
+            >
+              {showHelp ? "Hide instructions" : "Show instructions"}
+            </button>
+          </span>
+        </section>
+      )}
+      {showHelp && (
+        <section className="panel drop" aria-label="Instructions">
+          <p className="muted">
+            Columns: <span className="mono">{CSV_COLUMNS.join(", ")}</span>
           </p>
-        )}
-        {ready && (
-          <div className="csv-names">
-            <div>
-              <h3 className="small">Roles</h3>
-              <ul className="small" aria-label="Roles for the CSV">
-                {csvRoles(state.roles).map((r) => (
-                  <li key={r.role_name}>
-                    {r.role_description}
-                    {needsTeamNote(r) && <span className="muted"> ({needsTeamNote(r)})</span>}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <h3 className="small">Scan types</h3>
-              <ul className="small" aria-label="Scan types for the CSV">
-                <li>All (the default)</li>
-                {csvScanTypes(state.roles).map((r) => (
-                  <li key={r.role_name}>{r.role_description}</li>
-                ))}
-              </ul>
-            </div>
+          <ul className="muted csv-help" aria-label="CSV format">
+            <li>Email address and roles are required.</li>
+            <li>An empty user name is the email address.</li>
+            <li>
+              Roles by their names on the Platform, for example Security Lead. Separate several with{" "}
+              <span className="mono">;</span>.
+            </li>
+            <li>
+              Scan types: empty for All, or one or more of the types listed below, separated with{" "}
+              <span className="mono">;</span>. Only Security Lead, Creator and Submitter take them.
+            </li>
+            <li>
+              The import creates new users only: a row whose user name is already used is skipped.
+            </li>
+            <li>
+              Teams can&apos;t be set from a CSV yet, so roles that need a team are left out. Give
+              them by hand in the user&apos;s form afterwards.
+            </li>
+          </ul>
+          <p className="muted">
+            New to this? Start from the{" "}
+            <a href={SAMPLE_HREF} download="users-import-sample.csv">
+              sample CSV
+            </a>
+            : three example users, one for each way of writing a row. Replace them with your own.
+          </p>
+          <div className="drop-actions">
+            {chooser(loaded ? "Choose Another File" : "Choose CSV File")}
           </div>
-        )}
-      </section>
+          {parsed?.error && (
+            <p className="error-text" role="alert">
+              {parsed.error}
+            </p>
+          )}
+          {ready && (
+            <div className="csv-names">
+              <div>
+                <h3 className="small">Roles</h3>
+                <ul className="small" aria-label="Roles for the CSV">
+                  {csvRoles(state.roles).map((r) => (
+                    <li key={r.role_name}>
+                      {r.role_description}
+                      {needsTeamNote(r) && <span className="muted"> ({needsTeamNote(r)})</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <h3 className="small">Scan types</h3>
+                <ul className="small" aria-label="Scan types for the CSV">
+                  <li>All (the default)</li>
+                  {csvScanTypes(state.roles).map((r) => (
+                    <li key={r.role_name}>{r.role_description}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
       {plan.length > 0 && (
         <>
@@ -156,8 +185,8 @@ export function ImportPage({ state, picker }: Props) {
               <thead>
                 <tr>
                   <th>Line</th>
-                  <th>User Name</th>
                   <th>Email</th>
+                  <th>User Name</th>
                   <th>Name</th>
                   <th>Roles</th>
                   <th>Scan Types</th>
@@ -169,8 +198,8 @@ export function ImportPage({ state, picker }: Props) {
                 {plan.map((row) => (
                   <tr key={row.line}>
                     <td className="mono">{row.line}</td>
-                    <td>{row.user_name}</td>
                     <td>{row.email_address}</td>
+                    <td>{row.user_name}</td>
                     <td>
                       {row.first_name} {row.last_name}
                     </td>

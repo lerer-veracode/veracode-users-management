@@ -1,8 +1,8 @@
-user_name,email_address,first_name,last_name,roles,scan_types
-,nlead@example.com,Nadia,Lead,Security Lead,
-asmith,asmith@example.com,Alex,Smith,Reviewer,
-mlopez,mlopez@example.com,Maria,Lopez,Security Lead;Creator,Static;Container
-tadmin,tadmin@example.com,Tal,Admin,teamAdmin;Reviewer,
-,jdoe@example.com,Jane,Doe,Reviewer,
-csub,csub@example.com,Chris,Sub,Submitter,Static
-noemail,,No,Email,Reviewer,
+email_address,user_name,first_name,last_name,roles,scan_types
+nlead@example.com,,Nadia,Lead,Security Lead,
+asmith@example.com,asmith,Alex,Smith,Reviewer,
+mlopez@example.com,mlopez,Maria,Lopez,Security Lead;Creator,Static;Container
+tadmin@example.com,tadmin,Tal,Admin,teamAdmin;Reviewer,
+jdoe@example.com,,Jane,Doe,Reviewer,
+csub@example.com,csub,Chris,Sub,Submitter,Static
+,noemail,No,Email,Reviewer,

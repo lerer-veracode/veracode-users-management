@@ -13,10 +13,10 @@ The phases below are the order of building, each on its own branch and pull requ
 ## The CSV format
 
 ```csv
-user_name,email_address,first_name,last_name,roles,scan_types
-jdoe,jdoe@example.com,Jane,Doe,Security Lead,
-,asmith@example.com,Alex,Smith,Reviewer,
-mlopez,mlopez@example.com,Maria,Lopez,Security Lead;Creator,Static;Container
+email_address,user_name,first_name,last_name,roles,scan_types
+jdoe@example.com,jdoe,Jane,Doe,Security Lead,
+asmith@example.com,,Alex,Smith,Reviewer,
+mlopez@example.com,mlopez,Maria,Lopez,Security Lead;Creator,Static;Container
 ```
 
 - `email_address` and `roles` are required. `user_name` defaults to the email address. `first_name` and `last_name` default to the part of the email before the `@`. `scan_types` defaults to All.
@@ -36,7 +36,9 @@ A row is an error, and nothing is sent for it, when:
 
 - `dashboard/src/lib/csv.ts` reads the new columns. `dashboard/src/lib/importPlan.ts` checks each row against the organization's users and roles as above: Create, Create without some roles (naming them), or Error.
 - The Import page explains the format as a list of points, lists the organization's roles (marking those left out for needing a team) and scan types a CSV can use, and says that roles needing a team (Team Admin, and Creator or Submitter without Security Lead) are left out, to be given by hand in the form. Its preview shows the user name, email, name, roles, scan types, action and problems, and above the table, the users who'll miss roles and which.
-- **Download Sample CSV** on the Import page saves a template, `sample_users.csv`: three valid rows, one for each way of writing a user (no user name and All scan types; a user name and a role with no scan types; two roles and specific scan types). The administrator asked for it on 2026-11-15.
+- **The sample CSV:** the instructions link to a template, `users-import-sample.csv`: three valid rows, one for each way of writing a user (no user name and All scan types; a user name and a role with no scan types; two roles and specific scan types). The administrator asked for it on 2026-11-15, as a link in the text.
+- **Email first:** the columns are `email_address, user_name, first_name, last_name, roles, scan_types`, and the preview shows the email first too.
+- **Focus on the users:** once a file is read, the instructions fold away to a bar with the file's name and row count, Choose Another File, and Show instructions.
 - `data/sample_users.csv` (for tests) follows the new format: three good rows, one created without a team-bound role, and three bad ones (a user name already used, only a team-bound role, a missing email).
 - `docs/SPEC.md` "CSV format" matches this plan.
 
@@ -46,12 +48,14 @@ Success criteria:
 - [x] Dashboard tests: Team Admin, and Creator without Security Lead, are left out and named; Creator with Security Lead is kept; a row with only Team Admin is an error.
 - [x] Dashboard tests: each error case above, with its message; a user name already used names the user who has it.
 - [x] Dashboard tests: roles by Platform name or role name, ignoring case; the lists of roles and scan types leave out Administrator, API roles, scan types and the team setting, and mark the team-bound roles.
-- [x] Download Sample CSV saves the template, and every row of it previews as Create (dashboard tests).
+- [x] The sample CSV link saves the template, email first, and every row of it previews as Create (dashboard tests).
+- [x] After a file is read, the instructions fold away to the file bar, and open again with Show instructions (dashboard test and Playwright).
 - [x] The sample file previews as 4 to create (1 without some roles) and 3 with errors against the local stand-in (Playwright); a dashboard test previews a smaller file against the mock data.
 
 ## Phase 2: apply the import
 
 - **Apply N users:** opens a confirmation that lists the users to create, the roles left out, and the organization (connection, region). Rows with errors are left out and listed as skipped.
+- Each user is created with login enabled and MFA required, as the add form does by default; the CSV has no column for them.
 - **`POST /api/import`** takes the rows. For each, it checks with the same rules as `POST /api/users` (`checkNewUser`), leaves out the roles that need a team, and refuses a user name already taken. It reads the user names fresh from Veracode first, and creates the users one by one. A refusal by Veracode on one row doesn't stop the others. Each create is in the Activity log as with the form, with "Import from CSV" as its reason.
 - The page then reports each row: Created, Created without some roles (which), or Failed with Veracode's message or the rule it broke. Above it: "Users X, Y were created without roles that need a team (…): give them by hand in the form." The users list reloads.
 - At most 200 rows per file, so one import can't run for too long.

@@ -17,8 +17,8 @@ export type CsvUser = {
 export type ParseResult = { rows: CsvUser[]; error: string | null };
 
 export const CSV_COLUMNS = [
-  "user_name",
   "email_address",
+  "user_name",
   "first_name",
   "last_name",
   "roles",
@@ -29,11 +29,11 @@ export const CSV_COLUMNS = [
 export const SAMPLE_CSV = [
   CSV_COLUMNS.join(","),
   // No user name: it's the email address. No scan types: All.
-  ",jane.doe@example.com,Jane,Doe,Security Lead,",
+  "jane.doe@example.com,,Jane,Doe,Security Lead,",
   // A user name of its own, and a role that takes no scan types.
-  "asmith,alex.smith@example.com,Alex,Smith,Reviewer,",
+  "alex.smith@example.com,asmith,Alex,Smith,Reviewer,",
   // Two roles, and specific scan types.
-  "mlopez,maria.lopez@example.com,Maria,Lopez,Security Lead;Creator,Static;Container",
+  "maria.lopez@example.com,mlopez,Maria,Lopez,Security Lead;Creator,Static;Container",
   "",
 ].join("\n");
 

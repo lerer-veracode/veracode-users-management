@@ -37,10 +37,10 @@ A local web app that manages the users of one Veracode organization at a time th
 A header row, then one user per row:
 
 ```csv
-user_name,email_address,first_name,last_name,roles,scan_types
-jdoe,jdoe@example.com,Jane,Doe,Security Lead,
-,asmith@example.com,Alex,Smith,Reviewer,
-mlopez,mlopez@example.com,Maria,Lopez,Security Lead;Creator,Static;Container
+email_address,user_name,first_name,last_name,roles,scan_types
+jdoe@example.com,jdoe,Jane,Doe,Security Lead,
+asmith@example.com,,Alex,Smith,Reviewer,
+mlopez@example.com,mlopez,Maria,Lopez,Security Lead;Creator,Static;Container
 ```
 
 - `email_address` and `roles` are required. An empty `user_name` is the email address. `first_name` and `last_name` default to the part of the email before the `@`.

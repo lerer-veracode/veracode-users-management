@@ -207,6 +207,10 @@ test("import page previews the sample CSV against the real users", async ({ page
   await expect(page.getByText(/No role left: Submitter need a team/)).toBeVisible();
   await expect(page.getByText("Email address is required")).toBeVisible();
   await expect(page.getByRole("button", { name: "Create 4 Users" })).toBeDisabled();
+  await expect(page.getByRole("region", { name: "Chosen file" })).toContainText(
+    "File: sample_users.csv · 7 rows",
+  );
+  await page.getByRole("button", { name: "Show instructions" }).click();
   const roles = page.getByRole("list", { name: "Roles for the CSV" });
   await expect(roles).toContainText("Reviewer");
   await expect(roles).not.toContainText("Greenlight");
