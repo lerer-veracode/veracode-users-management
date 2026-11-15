@@ -55,8 +55,9 @@ test("users page shows the organization's users with roles and permissions", asy
   const dialog = page.getByRole("dialog", { name: "alice@example.com" });
   await expect(dialog.getByText("Security Lead")).toBeVisible();
   await expect(dialog.getByText("Manage applications")).toBeVisible();
-  // config/hidden-permissions.txt hides it.
+  // config/hidden-permissions.txt and config/hidden-roles.txt hide them.
   await expect(dialog.getByText("Manage VSA rules")).toHaveCount(0);
+  await expect(dialog.getByText(/Greenlight/)).toHaveCount(0);
   await expect(dialog.getByText("Blue Team")).toBeVisible();
   // Scan types and an API account's team setting show as the Platform shows them, not as roles
   // (docs/PLAN_ROLES.md, phase 2).
@@ -66,6 +67,9 @@ test("users page shows the organization's users with roles and permissions", asy
   await expect(dialog).toBeHidden();
   await expect(page.getByRole("row").filter({ hasText: "alice@example.com" })).not.toContainText(
     "Any Scan",
+  );
+  await expect(page.getByRole("row").filter({ hasText: "alice@example.com" })).not.toContainText(
+    "Greenlight",
   );
   await page.getByRole("button", { name: "api_ci", exact: true }).click();
   const api = page.getByRole("dialog", { name: "api_ci" });
@@ -203,4 +207,7 @@ test("import page previews the sample CSV against the real users", async ({ page
   await expect(page.getByText(/No role left: Submitter need a team/)).toBeVisible();
   await expect(page.getByText("Email address is required")).toBeVisible();
   await expect(page.getByRole("button", { name: "Create 4 Users" })).toBeDisabled();
+  const roles = page.getByRole("list", { name: "Roles for the CSV" });
+  await expect(roles).toContainText("Reviewer");
+  await expect(roles).not.toContainText("Greenlight");
 });

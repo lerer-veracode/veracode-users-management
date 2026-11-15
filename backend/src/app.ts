@@ -34,7 +34,7 @@ import {
   roleKind,
   type Org,
 } from "./veracode/rules.js";
-import { withoutHidden } from "./veracode/hidden.js";
+import { isHiddenRole, withoutHidden } from "./veracode/hidden.js";
 import { cleanUp, type CleanupReport } from "./vault/cleanup.js";
 import { readVault, writeVault } from "./vault/file.js";
 import { MAX_AGE_DAYS, isPast } from "./vault/retention.js";
@@ -56,6 +56,8 @@ export type AppDeps = {
   audit: AuditLog;
   // Permissions never sent to the dashboard (config/hidden-permissions.txt, docs/PLAN_ROLES.md).
   hiddenPermissions?: string[];
+  // Roles never sent to the dashboard or given, though kept on a user (config/hidden-roles.txt).
+  hiddenRoles?: string[];
 };
 
 const COOKIE = "um_session";
@@ -326,7 +328,20 @@ export const createApp = (deps: AppDeps) => {
       return running;
     };
   };
-  const rolesOf = kept(keptRoles, (conn) => listRoles(conn, tokens, veracode));
+  // Hidden roles (config/hidden-roles.txt) may be listed by their name on the Platform, but a
+  // user's record can name a role by its role name only (a save's reply does): each role list
+  // read notes the role names of the hidden roles in it.
+  const hiddenRoles = deps.hiddenRoles ?? [];
+  const hiddenRoleNames = new Set<string>();
+  const roleHidden = (r: { role_name: string; role_description?: string }) =>
+    isHiddenRole(hiddenRoles, r) || hiddenRoleNames.has(r.role_name.toLowerCase());
+  const rolesOf = kept(keptRoles, async (conn) => {
+    const roles = await listRoles(conn, tokens, veracode);
+    for (const r of roles) {
+      if (isHiddenRole(hiddenRoles, r)) hiddenRoleNames.add(r.role_name.toLowerCase());
+    }
+    return roles;
+  });
   const teamsOf = kept(keptTeams, (conn) => listTeams(conn, tokens, veracode));
 
   // The connection in use, and how answers name it, or the answer to give when there's none.
@@ -383,8 +398,18 @@ export const createApp = (deps: AppDeps) => {
 
   // Each user says whether this app may change them, and why not; each role whether it may be given.
   const hidden = deps.hiddenPermissions ?? [];
-  const withLock = (u: VeracodeUser) => ({
+  // A user as the dashboard sees them: without hidden permissions or hidden roles.
+  const shown = (u: VeracodeUser): VeracodeUser => ({
     ...withoutHidden(hidden, u),
+    roles: u.roles.filter((r) => !roleHidden(r)),
+  });
+  // The organization as the rules see it for a change: hidden roles can't be given.
+  const withoutHiddenRoles = (org: Org): Org => ({
+    ...org,
+    roles: org.roles.filter((r) => !roleHidden(r)),
+  });
+  const withLock = (u: VeracodeUser) => ({
+    ...shown(u),
     locked: protectedReason(u),
   });
 
@@ -397,7 +422,7 @@ export const createApp = (deps: AppDeps) => {
   const usersLoading = new Map<string, UsersLoad>();
   const PENDING = "This user's details are still being read from Veracode. Try again in a moment.";
   const firstView = (u: VeracodeUser) => ({
-    ...withoutHidden(hidden, u),
+    ...shown(u),
     locked: u.roles.some(isAdministratorRole) ? protectedReason(u) : PENDING,
   });
 
@@ -474,12 +499,14 @@ export const createApp = (deps: AppDeps) => {
       async (conn, fresh) => {
         const roles = await rolesOf(conn, fresh);
         const ok = new Set(assignable(roles).map((r) => r.role_name));
-        return roles.map((r) => ({
-          ...withoutHidden(hidden, r),
-          assignable: ok.has(r.role_name),
-          kind: roleKind(r),
-          no_team_restriction: isNoTeamRestriction(r),
-        }));
+        return roles
+          .filter((r) => !roleHidden(r))
+          .map((r) => ({
+            ...withoutHidden(hidden, r),
+            assignable: ok.has(r.role_name),
+            kind: roleKind(r),
+            no_team_restriction: isNoTeamRestriction(r),
+          }));
       },
       true,
     ),
@@ -578,7 +605,7 @@ export const createApp = (deps: AppDeps) => {
     const { conn, body } = t;
     try {
       return await withAudit({ connection: ref(conn), purpose: "Create a user" }, async () => {
-        const org = await readOrg(conn, bodyField(body, "user"));
+        const org = withoutHiddenRoles(await readOrg(conn, bodyField(body, "user")));
         const checked = checkNewUser(bodyField(body, "user"), org);
         if (!checked.ok) return c.json({ error: checked.error }, 400);
         const user = checked.value;
@@ -606,14 +633,35 @@ export const createApp = (deps: AppDeps) => {
         if (!current) return c.json({ error: "Say which user to change." }, 400);
         const locked = protectedReason(current);
         if (locked) return c.json({ error: locked }, 403);
-        const org = await readOrg(conn, bodyField(body, "changes"));
-        const checked = checkChanges(bodyField(body, "changes"), current, org);
+        const org = withoutHiddenRoles(await readOrg(conn, bodyField(body, "changes")));
+        // The dashboard never sees a hidden role, so the roles it sends leave it out: keep the
+        // hidden roles the user holds, so a change doesn't take them away.
+        const asked = bodyField(body, "changes");
+        const sentRoles = isRecord(asked) ? asked.roles : undefined;
+        const keptHidden = current.roles.filter(roleHidden).map((r) => r.role_name);
+        const changes =
+          isRecord(asked) && Array.isArray(sentRoles)
+            ? {
+                ...asked,
+                roles: [...sentRoles.filter((n) => !keptHidden.includes(n)), ...keptHidden],
+              }
+            : asked;
+        const checked = checkChanges(changes, current, org);
         if (!checked.ok) return c.json({ error: checked.error }, 400);
         const fields = Object.keys(checked.value).join(", ");
         const audited = {
           reason: `update ${current.user_name}: ${fields}`,
           target: { user_id: current.user_id, user_name: current.user_name },
-          changes: describeUpdate(current, checked.value, org),
+          changes: describeUpdate(
+            shown(current),
+            {
+              ...checked.value,
+              ...(checked.value.roles && {
+                roles: checked.value.roles.filter((n) => !keptHidden.includes(n)),
+              }),
+            },
+            org,
+          ),
         };
         const saved = await withAudit(audited, () =>
           withPurpose("save", () =>
@@ -674,7 +722,7 @@ export const createApp = (deps: AppDeps) => {
         const audited = {
           reason: `delete ${current.user_name}`,
           target: { user_id: current.user_id, user_name: current.user_name },
-          changes: describeDelete(current),
+          changes: describeDelete(shown(current)),
         };
         await withAudit(audited, () => deleteUser(conn, tokens, veracode, current.user_id));
         changed(conn, current.user_id, "deleted");

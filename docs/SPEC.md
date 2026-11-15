@@ -28,6 +28,7 @@ A local web app that manages the users of one Veracode organization at a time th
   - Login enabled and Require MFA. A new user's login is enabled, and MFA is required unless it's turned off.
 - Enable or disable a user's login straight from the row's Actions menu, after a confirmation. Edit and Delete are there too.
 - A confirmation before a user is deleted.
+- Roles for products the organization no longer has (Greenlight IDE User, listed in `config/hidden-roles.txt`) appear nowhere in the app, and can't be given; a user who has one keeps it.
 - A CSV import page that shows each row, whether it is valid, and what it will do: create, create without the roles that need a team, or nothing (an error).
 - The saved connections, with the organization, region and whether the token is valid, and a way to test each one. Connections are added and removed in the terminal with `npm run connect`, never in the browser.
 

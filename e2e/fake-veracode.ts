@@ -33,6 +33,8 @@ const USERS: FakeUser[] = [
     roles: [
       { role_name: "extseclead", role_description: "Security Lead" },
       { role_name: "extsubmitanyscan", role_description: "Any Scan" },
+      // Hidden by config/hidden-roles.txt.
+      { role_name: "greenlightideuser", role_description: "Greenlight IDE User" },
     ],
     teams: [{ team_id: "t1", team_name: "Blue Team", relationship: relationship("MEMBER") }],
   },
@@ -72,6 +74,7 @@ const ROLES = [
     ],
   },
   { role_name: "extreviewer", role_description: "Reviewer" },
+  { role_name: "greenlightideuser", role_description: "Greenlight IDE User" },
   { role_name: "extsubmitter", role_description: "Submitter" },
   { role_name: "extsubmitanyscan", role_description: "Any Scan" },
   { role_name: "extsubmitstaticscan", role_description: "Static Scan" },

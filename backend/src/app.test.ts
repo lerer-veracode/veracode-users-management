@@ -54,6 +54,7 @@ let audit: AuditLog;
 const setup = async (
   fetchFn: ReturnType<typeof veracode> = veracode(),
   hiddenPermissions?: string[],
+  hiddenRoles?: string[],
 ) => {
   let session = await createVault("yaakov", PASSWORD, START, CHEAP);
   session = await addUser(session, "dana", "dana long password", START, CHEAP);
@@ -76,6 +77,7 @@ const setup = async (
       sleeps.push(ms);
     },
     hiddenPermissions,
+    hiddenRoles,
   });
   return { app, sweep, fetchFn };
 };
@@ -600,7 +602,7 @@ describe("changing users", () => {
         roles: [{ role_name: "uploadapi", role_description: "Upload API", is_api: true }],
       },
     ];
-    const roles = [
+    const roles: Rec[] = [
       { role_name: "extseclead", role_description: "Security Lead" },
       { role_name: "extreviewer", role_description: "Reviewer" },
       { role_name: "extsubmitter", role_description: "Submitter" },
@@ -660,12 +662,12 @@ describe("changing users", () => {
       }
       return json(405, {});
     });
-    return { fetchFn, users, teams };
+    return { fetchFn, users, teams, roles };
   };
 
-  const ready = async () => {
+  const ready = async (hiddenRoles?: string[]) => {
     const stub = org();
-    const { app } = await setup(stub.fetchFn);
+    const { app } = await setup(stub.fetchFn, undefined, hiddenRoles);
     const { cookie } = await signIn(app);
     const list = (await (await get(app, "/api/connections", cookie)).json()) as {
       connections: { id: string }[];
@@ -718,6 +720,66 @@ describe("changing users", () => {
       { team_id: "t2", team_name: "Red" },
     ]);
     expect(users[0]?.teams).toEqual([{ team_id: "t1", team_name: "Blue", relationship: "MEMBER" }]);
+  });
+
+  it("hides the roles in config/hidden-roles.txt, and keeps them on a user it changes", async () => {
+    const { app, cookie, connection_id, fetchFn, users, roles } = await ready([
+      "Greenlight IDE User",
+    ]);
+    const greenlight = { role_name: "greenlightideuser", role_description: "Greenlight IDE User" };
+    roles.push(greenlight);
+    users[0] = {
+      ...users[0],
+      roles: [
+        { role_name: "extseclead", role_description: "Security Lead" },
+        { role_name: "extsubmitanyscan", role_description: "Any Scan" },
+        greenlight,
+      ],
+    };
+    const listed = (await (await get(app, "/api/roles", cookie)).json()).roles as Rec[];
+    expect(listed.map((r) => r.role_name)).not.toContain("greenlightideuser");
+    const details = await (await get(app, "/api/users/details", cookie)).text();
+    expect(details).not.toMatch(/greenlight/i);
+
+    // A change to the roles keeps the hidden role on the user, and the log doesn't mention it.
+    const res = await post(app, "/api/users/update", cookie, {
+      connection_id,
+      id: "u1",
+      changes: { roles: ["extseclead", "extsubmitanyscan", "extreviewer"] },
+    });
+    expect(res.status).toBe(200);
+    expect(await res.text()).not.toMatch(/greenlight/i);
+    const put = fetchFn.mock.calls.filter(([, i]) => i?.method === "PUT").at(-1);
+    expect((JSON.parse(String(put?.[1]?.body)) as Rec).roles).toEqual([
+      { role_name: "extseclead" },
+      { role_name: "extsubmitanyscan" },
+      { role_name: "extreviewer" },
+      { role_name: "greenlightideuser" },
+    ]);
+    expect((await audit.latest(10)).find((e) => e.action === "user.update")?.changes).toEqual([
+      { field: "Roles", from: "Security Lead", to: "Reviewer, Security Lead" },
+    ]);
+    // Sending the user's roles unchanged is no change.
+    const same = await post(app, "/api/users/update", cookie, {
+      connection_id,
+      id: "u1",
+      changes: { roles: ["extseclead", "extsubmitanyscan", "extreviewer"] },
+    });
+    expect(await same.json()).toEqual({ error: "Nothing to change." });
+
+    // It can't be given to anyone.
+    const create = await post(app, "/api/users/create", cookie, {
+      connection_id,
+      user: {
+        email_address: "n@x.com",
+        first_name: "N",
+        last_name: "P",
+        roles: ["extreviewer", "greenlightideuser"],
+      },
+    });
+    expect((await create.json()).error).toBe(
+      "greenlightideuser isn't a role in this organization.",
+    );
   });
 
   it("needs a scan type for Security Lead, Creator and Submitter, and teams for Team Admin", async () => {
