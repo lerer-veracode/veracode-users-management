@@ -458,6 +458,9 @@ export const resetMfa = async (
     "Resetting the user's MFA",
     `${userUrl(creds, id)}/reset_mfa`,
     "POST",
+    // The spec gives this call no body, but Veracode refuses a POST without a JSON
+    // Content-Type (415, docs/REALITY.md entry 46), so an empty object is sent.
+    {},
   );
 };
 

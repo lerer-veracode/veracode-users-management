@@ -13,7 +13,7 @@ The Identity API's `POST /v2/users/{userId}/reset_mfa` resets a user's MFA: Vera
 
 ## Phase 1: Reset MFA
 
-- [x] Backend: `POST /api/users/reset-mfa` reads the user afresh, refuses an administrator or a SAML user (403) and a wrong confirmation (400), then calls `reset_mfa`.
+- [x] Backend: `POST /api/users/reset-mfa` (sent to Veracode with `{}` and a JSON Content-Type, REALITY entry 46) reads the user afresh, refuses an administrator or a SAML user (403) and a wrong confirmation (400), then calls `reset_mfa`.
 - [x] Each user carries `mfa_locked`: why their MFA can't be reset, or null.
 - [x] Activity log: the call is `user.reset_mfa`, with purpose "Reset a user's MFA", reason "reset MFA of USER (TYPE user)", the user, and "MFA setup: As the user set it up → Reset: set up again at next sign-in". A refusal from Veracode is logged with its message.
 - [x] Dashboard: "Reset MFA" in each user's Actions menu and details, disabled with the reason for administrators and SAML users; a confirmation dialog; a notice when done.

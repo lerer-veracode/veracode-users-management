@@ -1662,7 +1662,14 @@ describe("resetting MFA", () => {
       if (path === "/v2/roles")
         return json(200, { _embedded: { roles: [] }, page: { total_pages: 1 } });
       const reset = users.find((u) => path === `/v2/users/${String(u.user_id)}/reset_mfa`);
-      if (reset && method === "POST") return json(200, reset);
+      if (reset && method === "POST") {
+        // As Veracode does: a POST without a JSON Content-Type is refused (REALITY entry 46).
+        const type = new Headers(init?.headers).get("Content-Type") ?? "";
+        if (!type.startsWith("application/json")) {
+          return json(415, { message: "Invalid Content-Type header." });
+        }
+        return json(200, reset);
+      }
       const one = users.find((u) => path === `/v2/users/${String(u.user_id)}`);
       if (one && method === "GET") return json(200, one);
       return json(404, { message: "No such user" });
