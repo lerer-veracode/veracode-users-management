@@ -16,6 +16,7 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "e2e": "npm run e2e -w e2e",
+    "screenshots": "npm run screenshots -w e2e",
     "check": "npm run format && npm run lint && npm run typecheck && npm run test && npm run e2e",
     "prepare": "node scripts/install-hooks.mjs",
     "precommit": "node scripts/check-no-vault.mjs && npm run format && npm run lint && npm run typecheck && npm run test && npm run e2e",

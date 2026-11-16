@@ -3,5 +3,13 @@
   "compilerOptions": {
     "types": ["node"]
   },
-  "include": ["tests", "playwright.config.ts", "global-setup.ts", "settings.ts", "fake-veracode.ts"]
+  "include": [
+    "tests",
+    "playwright.config.ts",
+    "global-setup.ts",
+    "settings.ts",
+    "fake-veracode.ts",
+    "screenshots",
+    "screenshots.config.ts"
+  ]
 }
