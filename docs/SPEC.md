@@ -71,11 +71,17 @@ mlopez@example.com,mlopez,Maria,Lopez,Security Lead;Creator,Static;Container
 
 ## Not for now
 
-- The light theme. Only the dark theme is built at first; see `docs/BRAND.md`.
-- Deleting users from a CSV file. Deletes are one user at a time in the table.
-- Creating or changing teams. A user's team memberships, and which teams a Team Admin manages, are set on the user.
-- SAML and API service accounts beyond showing their type.
-- Sign-in to the app itself; it runs on the administrator's own machine.
+The future features are also GitHub issues, labelled `enhancement`.
+
+- The light theme. Only the dark theme is built at first; see `docs/BRAND.md`. Issue #19.
+- Creating or changing teams. A user's team memberships, and which teams a Team Admin manages, are set on the user. Wanted later, as a bigger piece of work, since it needs new pages (issue #20).
+- Sign-in to the app itself; it runs on the administrator's own machine. Not needed yet.
+- Changing API service accounts, beyond resetting their MFA.
+
+## Never (the administrator's decisions, 2026-11-16)
+
+- Deleting users from a CSV file: too dangerous. Deletes stay one user at a time, with the user name typed.
+- Managing SAML users beyond showing their type. They're managed outside Veracode, by the customer's identity provider. Provisioning them (SCIM) is for Veracode to build, not this app.
 
 ## Future upgrades (optional)
 
