@@ -13,6 +13,7 @@ import {
   checkAccess,
   createUser,
   deleteUser,
+  resetMfa,
   getUser,
   listRoles,
   listTeams,
@@ -30,6 +31,7 @@ import {
   checkNewUser,
   isAdministratorRole,
   protectedReason,
+  mfaResetReason,
   isNoTeamRestriction,
   roleKind,
   type Org,
@@ -420,6 +422,7 @@ export const createApp = (deps: AppDeps) => {
   const withLock = (u: VeracodeUser) => ({
     ...shown(u),
     locked: protectedReason(u),
+    mfa_locked: mfaResetReason(u),
   });
 
   // The users load in two steps (docs/PLAN_CACHE.md, phase 6). The first view is the bulk list,
@@ -433,6 +436,7 @@ export const createApp = (deps: AppDeps) => {
   const firstView = (u: VeracodeUser) => ({
     ...shown(u),
     locked: u.roles.some(isAdministratorRole) ? protectedReason(u) : PENDING,
+    mfa_locked: u.roles.some(isAdministratorRole) ? mfaResetReason(u) : PENDING,
   });
 
   const loadUsers = (conn: Connection, fresh: boolean): UsersLoad => {
@@ -816,6 +820,41 @@ export const createApp = (deps: AppDeps) => {
         await withAudit(audited, () => deleteUser(conn, tokens, veracode, current.user_id));
         changed(conn, current.user_id, "deleted");
         return c.json({ deleted: current.user_name });
+      });
+    } catch (e) {
+      return veracodeFailure(c, conn, e);
+    }
+  });
+
+  // Resets a user's MFA: Veracode has them set it up again at their next sign-in. Allowed for UI
+  // users and API accounts, never for an administrator or a SAML user (rules.ts,
+  // mfaResetReason). The administrator types the user name to confirm, as for a delete.
+  app.post("/users/reset-mfa", async (c) => {
+    const t = await target(c);
+    if (t instanceof Response) return t;
+    const { conn, body } = t;
+    try {
+      return await withAudit({ connection: ref(conn), purpose: "Reset a user's MFA" }, async () => {
+        const current = await loadTarget(conn, body);
+        if (!current) return c.json({ error: "Say whose MFA to reset." }, 400);
+        const locked = mfaResetReason(current);
+        if (locked) return c.json({ error: locked }, 403);
+        if (bodyField(body, "confirm") !== current.user_name) {
+          return c.json({ error: "Type the user name exactly to confirm." }, 400);
+        }
+        const audited = {
+          reason: `reset MFA of ${current.user_name} (${current.user_type} user)`,
+          target: { user_id: current.user_id, user_name: current.user_name },
+          changes: [
+            {
+              field: "MFA setup",
+              from: "As the user set it up",
+              to: "Reset: set up again at next sign-in",
+            },
+          ],
+        };
+        await withAudit(audited, () => resetMfa(conn, tokens, veracode, current.user_id));
+        return c.json({ reset: current.user_name });
       });
     } catch (e) {
       return veracodeFailure(c, conn, e);

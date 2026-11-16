@@ -11,7 +11,8 @@ import { UserDetails } from "../components/UserDetails";
 import { UserFormDialog, type Change } from "../components/UserFormDialog";
 import { UsersTable } from "../components/UsersTable";
 import type { DirectoryState } from "../hooks/useDirectory";
-import { ApiError, createUser, deleteUser, readUser, updateUser } from "../lib/api";
+import { ApiError, createUser, deleteUser, readUser, resetMfa, updateUser } from "../lib/api";
+import { ResetMfaDialog } from "../components/ResetMfaDialog";
 import {
   EMPTY_FILTERS,
   filterUsers,
@@ -37,7 +38,8 @@ type Action =
   | { kind: "add" }
   | { kind: "edit"; user: User }
   | { kind: "login"; user: User }
-  | { kind: "delete"; user: User };
+  | { kind: "delete"; user: User }
+  | { kind: "mfa"; user: User };
 
 export function UsersPage({ state, reload, refreshTeams, picker, onUnauthorized }: Props) {
   const [action, setAction] = useState<Action | null>(null);
@@ -136,6 +138,13 @@ export function UsersPage({ state, reload, refreshTeams, picker, onUnauthorized 
       return `Deleted ${user.user_name} from ${source.name}.`;
     });
 
+  const resetUserMfa = (user: User, confirm: string) =>
+    run(async () => {
+      if (!source) throw new Error("No connection in use.");
+      await resetMfa(source.id, user.user_id, confirm);
+      return `Reset MFA for ${user.user_name} in ${source.name}: they set it up again at their next sign-in.`;
+    });
+
   return (
     <main className="page">
       <PageHeader title="All Users">
@@ -223,6 +232,7 @@ export function UsersPage({ state, reload, refreshTeams, picker, onUnauthorized 
                 onEdit={(user) => void edit(user)}
                 onLogin={(user) => setAction({ kind: "login", user })}
                 onDelete={(user) => setAction({ kind: "delete", user })}
+                onResetMfa={(user) => setAction({ kind: "mfa", user })}
               />
               <Pagination
                 total={visible.length}
@@ -247,6 +257,7 @@ export function UsersPage({ state, reload, refreshTeams, picker, onUnauthorized 
           onClose={() => setViewing(null)}
           onEdit={() => setAction({ kind: "edit", user: viewing })}
           onDelete={() => setAction({ kind: "delete", user: viewing })}
+          onResetMfa={() => setAction({ kind: "mfa", user: viewing })}
         />
       )}
       {(action?.kind === "add" || action?.kind === "edit") && state.status === "ready" && (
@@ -274,6 +285,14 @@ export function UsersPage({ state, reload, refreshTeams, picker, onUnauthorized 
           source={state.source}
           user={action.user}
           onDelete={(confirm) => remove(action.user, confirm)}
+          onCancel={() => setAction(null)}
+        />
+      )}
+      {action?.kind === "mfa" && state.status === "ready" && (
+        <ResetMfaDialog
+          source={state.source}
+          user={action.user}
+          onReset={(confirm) => resetUserMfa(action.user, confirm)}
           onCancel={() => setAction(null)}
         />
       )}

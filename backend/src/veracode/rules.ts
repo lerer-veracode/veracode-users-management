@@ -83,6 +83,18 @@ export const protectedReason = (user: VeracodeUser): string | null => {
   return null;
 };
 
+// Why the app won't reset this user's MFA, or null. UI users and API accounts may be reset; a
+// SAML user signs in through their identity provider, so Veracode's MFA isn't theirs to reset.
+export const mfaResetReason = (user: VeracodeUser): string | null => {
+  if (user.roles.some(isAdministratorRole)) {
+    return `${user.user_name} has the Administrator role. This app never changes administrators.`;
+  }
+  if (user.user_type === "SAML") {
+    return `${user.user_name} is a SAML account: their sign-in and MFA are managed by their identity provider.`;
+  }
+  return null;
+};
+
 // The roles this app may give: not Administrator, not API roles.
 export const assignable = (roles: VeracodeRole[]): VeracodeRole[] =>
   roles.filter((r) => !r.is_api && !isAdministratorRole(r));

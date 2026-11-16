@@ -172,6 +172,14 @@ test("adds, edits and deletes a user, and never touches an administrator", async
     .click();
   await expect(page.getByText("Disabled login for e2e.test@example.com in e2e-org.")).toBeVisible();
 
+  // Reset MFA from the Actions menu.
+  await page.getByRole("button", { name: "Actions for e2e.test@example.com" }).click();
+  await page.getByRole("menuitem", { name: "Reset MFA" }).click();
+  const mfa = page.getByRole("dialog", { name: "Reset MFA for e2e.test@example.com" });
+  await mfa.getByLabel(/to confirm/).fill("e2e.test@example.com");
+  await mfa.getByRole("button", { name: "Reset MFA" }).click();
+  await expect(page.getByText(/^Reset MFA for e2e.test@example.com in e2e-org/)).toBeVisible();
+
   // Delete.
   await page.getByRole("button", { name: "e2e.test@example.com", exact: true }).click();
   await page.getByRole("button", { name: "Delete", exact: true }).click();
@@ -183,13 +191,17 @@ test("adds, edits and deletes a user, and never touches an administrator", async
 
   await page.getByRole("link", { name: "Activity" }).click();
   const log = page.getByRole("region", { name: "Activity log" });
-  for (const action of ["user.create", "user.update", "user.delete"]) {
+  for (const action of ["user.create", "user.update", "user.reset_mfa", "user.delete"]) {
     await expect(log.getByText(action, { exact: true }).first()).toBeVisible();
   }
   await expect(log.getByText("delete e2e.test@example.com").first()).toBeVisible();
   // Each change keeps the user and each field from and to.
   await expect(log.getByText("Last name: Person → Renamed").first()).toBeVisible();
   await expect(log.getByText("Login: Enabled → Disabled").first()).toBeVisible();
+  await expect(log.getByText("reset MFA of e2e.test@example.com (UI user)").first()).toBeVisible();
+  await expect(
+    log.getByText("MFA setup: As the user set it up → Reset: set up again at next sign-in").first(),
+  ).toBeVisible();
   await expect(log.getByText("Manages teams: — → Blue Team").first()).toBeVisible();
 });
 

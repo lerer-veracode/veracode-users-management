@@ -49,6 +49,8 @@ export type User = {
   details_pending: boolean;
   // Why this app won't change or delete the user (an administrator, or not a UI user), or null.
   locked: string | null;
+  // Why this app won't reset the user's MFA (an administrator, or a SAML user), or null.
+  mfa_locked: string | null;
 };
 
 export type NewUser = {

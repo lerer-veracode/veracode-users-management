@@ -43,7 +43,7 @@ type Context = {
   changes?: FieldChange[];
 };
 
-const USER_CHANGES = ["user.create", "user.update", "user.delete"];
+const USER_CHANGES = ["user.create", "user.update", "user.delete", "user.reset_mfa"];
 
 const context = new AsyncLocalStorage<Context>();
 
@@ -157,6 +157,7 @@ export const classify = (method: string, path: string): string => {
   // The users of one role, read in bulk for the list (docs/PLAN_CACHE.md, phase 4).
   if (p.startsWith("/v2/users/by_role/") && method === "GET") return "user.list";
   if (p === "/v2/users" && method === "POST") return "user.create";
+  if (/^\/v2\/users\/[^/]+\/reset_mfa$/.test(p) && method === "POST") return "user.reset_mfa";
   if (/^\/v2\/users\/[^/]+$/.test(p)) {
     if (method === "GET") return "user.read";
     if (method === "PUT") return "user.update";

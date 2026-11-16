@@ -11,9 +11,10 @@ type Props = {
   onClose: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onResetMfa: () => void;
 };
 
-export function UserDetails({ user, roles, source, onClose, onEdit, onDelete }: Props) {
+export function UserDetails({ user, roles, source, onClose, onEdit, onDelete, onResetMfa }: Props) {
   // As on the Platform: scan types and the API team setting aren't listed as roles
   // (docs/PLAN_ROLES.md, phase 2).
   const view = roleView(user, roles);
@@ -139,6 +140,15 @@ export function UserDetails({ user, roles, source, onClose, onEdit, onDelete }: 
           onClick={onDelete}
         >
           Delete
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary btn-small"
+          disabled={user.mfa_locked !== null}
+          title={user.mfa_locked ?? undefined}
+          onClick={onResetMfa}
+        >
+          Reset MFA
         </button>
         <button
           type="button"

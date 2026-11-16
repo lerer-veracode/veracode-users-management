@@ -104,6 +104,11 @@ export const USERS: User[] = PEOPLE.map(([first, last, type, roles, active], i) 
       : type === "UI"
         ? null
         : `${userName} is a${type === "API" ? "n" : ""} ${type} account. This app changes only UI users.`,
+    mfa_locked: roles.includes("extadmin")
+      ? `${userName} has the Administrator role. This app never changes administrators.`
+      : type === "SAML"
+        ? `${userName} is a SAML account: their sign-in and MFA are managed by their identity provider.`
+        : null,
     first_name: first,
     last_name: last,
     email_address: `${handle}@example.com`,

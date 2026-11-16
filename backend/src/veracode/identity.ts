@@ -444,6 +444,26 @@ export const deleteUser = async (
   await send(creds, tokens, fetchFn, "Deleting the user", userUrl(creds, id), "DELETE");
 };
 
+// Asks Veracode to reset a user's MFA: they set it up again at their next sign-in.
+export const resetMfa = async (
+  creds: Credentials,
+  tokens: TokenCache,
+  fetchFn: Fetch,
+  id: string,
+): Promise<void> => {
+  await send(
+    creds,
+    tokens,
+    fetchFn,
+    "Resetting the user's MFA",
+    `${userUrl(creds, id)}/reset_mfa`,
+    "POST",
+    // The spec gives this call no body, but Veracode refuses a POST without a JSON
+    // Content-Type (415, docs/REALITY.md entry 46), so an empty object is sent.
+    {},
+  );
+};
+
 export const listRoles = async (
   creds: Credentials,
   tokens: TokenCache,
