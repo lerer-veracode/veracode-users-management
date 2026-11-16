@@ -16,6 +16,7 @@ type Props = {
   onEdit: (user: User) => void;
   onLogin: (user: User) => void;
   onDelete: (user: User) => void;
+  onResetMfa: (user: User) => void;
 };
 
 export function UsersTable({
@@ -27,6 +28,7 @@ export function UsersTable({
   onEdit,
   onLogin,
   onDelete,
+  onResetMfa,
 }: Props) {
   // Scan types and the API team setting aren't roles on the Platform (docs/PLAN_ROLES.md).
   const roleNames = (u: User) =>
@@ -79,6 +81,11 @@ export function UsersTable({
                     label: u.login_enabled ? "Disable login" : "Enable login",
                     onSelect: () => onLogin(u),
                     disabled: u.locked ?? undefined,
+                  },
+                  {
+                    label: "Reset MFA",
+                    onSelect: () => onResetMfa(u),
+                    disabled: u.mfa_locked ?? undefined,
                   },
                   {
                     label: "Delete",

@@ -202,6 +202,9 @@ export const startFakeVeracode = (port: number): Promise<Server> =>
         ).map(({ teams, ...rest }) => (void teams, { ...rest, roles: withRoleIds(rest.roles) }));
         return send(200, { _embedded: { users: holders }, page: { total_pages: 1 } });
       }
+      const reset = USERS.find((u) => path === `/api/authn/v2/users/${u.user_id}/reset_mfa`);
+      if (reset && method === "POST")
+        return send(200, { ...reset, roles: withRoleIds(reset.roles) });
       const i = USERS.findIndex((u) => path === `/api/authn/v2/users/${u.user_id}`);
       const one = USERS[i];
       if (one && method === "PUT") {

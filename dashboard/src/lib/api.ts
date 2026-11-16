@@ -49,6 +49,7 @@ const ROUTES = {
   createUser: "/api/users/create",
   updateUser: "/api/users/update",
   deleteUser: "/api/users/delete",
+  resetMfa: "/api/users/reset-mfa",
   readUser: "/api/users/read",
   importUsers: "/api/import",
 } as const;
@@ -230,6 +231,8 @@ const toUser = (u: Json): User => ({
   details_pending: u.details_pending === true,
   // A user the backend doesn't vouch for is treated as locked.
   locked: "locked" in u ? strOrNull(u.locked) : "Unknown whether this user may be changed.",
+  mfa_locked:
+    "mfa_locked" in u ? strOrNull(u.mfa_locked) : "Unknown whether this user's MFA may be reset.",
 });
 
 // Changes go to fixed URLs; the connection shown, and the user, travel in the body. The
@@ -292,6 +295,14 @@ export const deleteUser = async (
   confirm: string,
 ): Promise<void> => {
   await call("deleteUser", "POST", { connection_id: connectionId, id, confirm });
+};
+
+export const resetMfa = async (
+  connectionId: string,
+  id: string,
+  confirm: string,
+): Promise<void> => {
+  await call("resetMfa", "POST", { connection_id: connectionId, id, confirm });
 };
 
 export const getRoles = async (fresh = false): Promise<{ source: Source; roles: Role[] }> => {

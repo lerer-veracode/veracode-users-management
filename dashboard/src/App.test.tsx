@@ -176,6 +176,7 @@ const fakeBackend = () => {
                   details_pending: true,
                   last_login: null,
                   locked: u.locked ?? "Details still loading.",
+                  mfa_locked: u.mfa_locked ?? "Details still loading.",
                 })),
               }
             : { connection, users }
@@ -220,6 +221,7 @@ const fakeBackend = () => {
         state.users = state.users.filter((u) => u.user_id !== id);
         return reply(200, { deleted: "x" });
       }
+      if (path === "/api/users/reset-mfa") return reply(200, { reset: "x" });
       if (path === "/api/users/create") {
         const user = get("user");
         const email =
@@ -698,6 +700,50 @@ describe("changing users", () => {
       expect(within(details).getByRole("button", { name: "Delete" })).toBeDisabled();
       await user.keyboard("{Escape}");
     }
+  });
+
+  it("resets MFA for a UI user or an API account, never an administrator or a SAML user", async () => {
+    const user = userEvent.setup();
+    await go("#/users");
+    await screen.findByText("1-10 of 23");
+    for (const [name, why] of [
+      ["ylerer@example.com", "has the Administrator role"],
+      ["pnair@example.com", "is a SAML account"],
+    ] as const) {
+      const details = await openUser(user, name);
+      const button = within(details).getByRole("button", { name: "Reset MFA" });
+      expect(button).toBeDisabled();
+      expect(button).toHaveAttribute("title", expect.stringContaining(why));
+      await user.keyboard("{Escape}");
+    }
+    // An API account may be reset, though it can't be edited.
+    const api = await openUser(user, "api_aautomation");
+    expect(within(api).getByRole("button", { name: "Reset MFA" })).toBeEnabled();
+    await user.keyboard("{Escape}");
+
+    const details = await openUser(user, "mwebb@example.com");
+    await user.click(within(details).getByRole("button", { name: "Reset MFA" }));
+    const dialog = screen.getByRole("dialog", { name: "Reset MFA for mwebb@example.com" });
+    expect(within(dialog).getByText("acme (US)")).toBeInTheDocument();
+    const button = within(dialog).getByRole("button", { name: "Reset MFA" });
+    const input = within(dialog).getByLabelText(/to confirm/);
+    await user.type(input, "mwebb");
+    expect(button).toBeDisabled();
+    await user.type(input, "@example.com");
+    backend.state.changeError = "Resetting the user's MFA failed (403): Forbidden";
+    await user.click(button);
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Forbidden");
+    backend.state.changeError = "";
+    await user.click(button);
+    expect(
+      await screen.findByText(
+        "Reset MFA for mwebb@example.com in acme: they set it up again at their next sign-in.",
+      ),
+    ).toBeInTheDocument();
+    expect(backend.state.sent.at(-1)).toEqual({
+      path: "/api/users/reset-mfa",
+      body: { connection_id: "c1", id: USERS[3]?.user_id, confirm: "mwebb@example.com" },
+    });
   });
 
   it("deletes a user only after the user name is typed", async () => {

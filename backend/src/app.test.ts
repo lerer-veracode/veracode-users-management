@@ -649,6 +649,8 @@ describe("changing users", () => {
         users.push(user);
         return json(200, user);
       }
+      const mfa = users.find((u) => path === `/v2/users/${String(u.user_id)}/reset_mfa`);
+      if (mfa && method === "POST") return json(200, mfa);
       const i = users.findIndex((u) => path === `/v2/users/${String(u.user_id)}`);
       if (i < 0) return json(404, { message: "No such user" });
       if (method === "GET") return json(200, users[i]);
@@ -1608,6 +1610,149 @@ describe("changing users", () => {
     expect([gone.status, (await gone.json()).error]).toEqual([
       502,
       "Reading the user failed (404): No such user",
+    ]);
+  });
+});
+
+describe("resetting MFA", () => {
+  type Rec = Record<string, unknown>;
+  const ready = async () => {
+    const users: Rec[] = [
+      {
+        user_id: "u1",
+        user_name: "jdoe",
+        first_name: "Jane",
+        last_name: "Doe",
+        email_address: "jane@x.com",
+        roles: [{ role_name: "extreviewer", role_description: "Reviewer" }],
+      },
+      {
+        user_id: "u2",
+        user_name: "boss",
+        first_name: "Big",
+        last_name: "Boss",
+        email_address: "boss@x.com",
+        roles: [{ role_name: "extadmin", role_description: "Administrator" }],
+      },
+      {
+        user_id: "u3",
+        user_name: "api_ci",
+        first_name: "CI",
+        last_name: "Bot",
+        email_address: "ci@x.com",
+        roles: [{ role_name: "uploadapi", role_description: "Upload API", is_api: true }],
+      },
+      {
+        user_id: "u4",
+        user_name: "sso@x.com",
+        first_name: "Sam",
+        last_name: "Sso",
+        email_address: "sso@x.com",
+        saml_user: true,
+        roles: [{ role_name: "extreviewer", role_description: "Reviewer" }],
+      },
+    ];
+    const fetchFn = vi.fn<Fetch>(async (input, init) => {
+      const path = new URL(String(input)).pathname.replace("/api/authn", "");
+      const method = init?.method ?? "GET";
+      if (path === "/v2/oauth2/token") return json(200, { access_token: "tok", expires_in: 3600 });
+      if (path === "/v2/users" && method === "GET") {
+        return json(200, { _embedded: { users }, page: { total_pages: 1 } });
+      }
+      if (path === "/v2/roles")
+        return json(200, { _embedded: { roles: [] }, page: { total_pages: 1 } });
+      const reset = users.find((u) => path === `/v2/users/${String(u.user_id)}/reset_mfa`);
+      if (reset && method === "POST") return json(200, reset);
+      const one = users.find((u) => path === `/v2/users/${String(u.user_id)}`);
+      if (one && method === "GET") return json(200, one);
+      return json(404, { message: "No such user" });
+    });
+    const { app } = await setup(fetchFn);
+    const { cookie } = await signIn(app);
+    const list = (await (await get(app, "/api/connections", cookie)).json()) as {
+      connections: { id: string }[];
+    };
+    const resets = () =>
+      fetchFn.mock.calls
+        .filter(([, i]) => i?.method === "POST")
+        .map(([u]) => new URL(String(u)).pathname)
+        .filter((p) => p.endsWith("/reset_mfa"));
+    return { app, cookie, connection_id: list.connections[0]?.id ?? "", resets };
+  };
+
+  it("resets a UI user's or an API account's MFA once the name typed matches, and logs it", async () => {
+    const { app, cookie, connection_id, resets } = await ready();
+    const wrong = await post(app, "/api/users/reset-mfa", cookie, {
+      connection_id,
+      id: "u1",
+      confirm: "jdo",
+    });
+    expect([wrong.status, (await wrong.json()).error]).toEqual([
+      400,
+      "Type the user name exactly to confirm.",
+    ]);
+    expect(resets()).toEqual([]);
+    for (const [id, name] of [
+      ["u1", "jdoe"],
+      ["u3", "api_ci"],
+    ]) {
+      const res = await post(app, "/api/users/reset-mfa", cookie, {
+        connection_id,
+        id,
+        confirm: name,
+      });
+      expect(await res.json()).toEqual({ reset: name });
+    }
+    expect(resets()).toEqual([
+      "/api/authn/v2/users/u1/reset_mfa",
+      "/api/authn/v2/users/u3/reset_mfa",
+    ]);
+    const entries = (await audit.latest(20)).filter((e) => e.action === "user.reset_mfa");
+    expect(entries.find((e) => e.target?.user_id === "u1")).toMatchObject({
+      outcome: "ok",
+      status: 200,
+      purpose: "Reset a user's MFA",
+      reason: "reset MFA of jdoe (UI user)",
+      target: { user_id: "u1", user_name: "jdoe" },
+      changes: [
+        {
+          field: "MFA setup",
+          from: "As the user set it up",
+          to: "Reset: set up again at next sign-in",
+        },
+      ],
+    });
+    expect(entries.find((e) => e.target?.user_id === "u3")?.reason).toBe(
+      "reset MFA of api_ci (API user)",
+    );
+  });
+
+  it("never resets an administrator's or a SAML user's MFA, and says which may be reset", async () => {
+    const { app, cookie, connection_id, resets } = await ready();
+    for (const [id, name, message] of [
+      ["u2", "boss", "boss has the Administrator role. This app never changes administrators."],
+      [
+        "u4",
+        "sso@x.com",
+        "sso@x.com is a SAML account: their sign-in and MFA are managed by their identity provider.",
+      ],
+    ]) {
+      const res = await post(app, "/api/users/reset-mfa", cookie, {
+        connection_id,
+        id,
+        confirm: name,
+      });
+      expect([res.status, (await res.json()).error]).toEqual([403, message]);
+    }
+    const none = await post(app, "/api/users/reset-mfa", cookie, { connection_id });
+    expect((await none.json()).error).toBe("Say whose MFA to reset.");
+    expect(resets()).toEqual([]);
+    const users = (await (await get(app, "/api/users/details", cookie)).json()).users as Rec[];
+    expect(users.map((u) => [u.user_name, u.mfa_locked === null])).toEqual([
+      ["jdoe", true],
+      ["boss", false],
+      ["api_ci", true],
+      ["sso@x.com", false],
     ]);
   });
 });
