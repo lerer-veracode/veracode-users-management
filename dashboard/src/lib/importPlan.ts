@@ -24,7 +24,9 @@ const SECURITY_LEAD = "extseclead";
 // does (docs/SPEC.md, the form's rules).
 const TEAM_LEVEL = ["extcreator", "extsubmitter"];
 
-const lower = (s: string) => s.toLowerCase();
+// Names compared ignoring case and spacing: a name from Veracode can carry a trailing or a
+// non-breaking space that the Platform doesn't show.
+const lower = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
 const isScanType = (r: Role) => r.kind === "scan_type" || r.kind === "any_scan";
 
 // "Static", "Static Scan" or "extsubmitstaticscan", ignoring case.
@@ -57,8 +59,16 @@ const scanTypes = (written: string[], roles: Role[]): ScanResult => {
   }
   const found = written.map((s) => scanTypeNamed(roles, s));
   const unknown = written.filter((_, i) => !found[i]);
-  if (unknown.length > 0)
-    return { give: [], label: "", errors: [`Unknown scan types: ${unknown.join(", ")}`] };
+  if (unknown.length > 0) {
+    const known = csvScanTypes(roles).map((r) => r.role_description.trim());
+    return {
+      give: [],
+      label: "",
+      errors: [
+        `Unknown scan types: ${unknown.join(", ")} (this organization's: All, ${known.join(", ")})`,
+      ],
+    };
+  }
   const give = [...new Set(found.filter((r): r is Role => r !== undefined))];
   return { give, label: give.map((r) => r.role_description).join(", "), errors: [] };
 };
