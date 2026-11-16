@@ -1,6 +1,24 @@
 # Veracode User Manager
 
-A local web app that manages the users of a Veracode Platform organization through the Veracode Identity API, including bulk changes from a CSV file.
+An unofficial local web app that manages the users of a Veracode Platform organization through the Veracode Identity API.
+
+- List, filter and export users, with their roles, scan types, teams, last login and status.
+- Add, edit, enable or disable login, reset MFA and delete users, from each user's Actions menu (**⋯**) or their details. Reset MFA has the user set up MFA again at their next sign-in, for UI users and API accounts. Administrators are never changed, whatever route is used, and SAML users are left to their identity provider.
+- Import new users from a CSV file, with a preview of every row before anything is sent.
+- Every call to Veracode is recorded in an Activity log: who, what, why, and each field changed.
+- Veracode credentials stay in an encrypted vault on your machine, and never reach the browser.
+
+The screenshots use made-up users. Run `npm run screenshots` to retake them.
+
+![All users](docs/screenshots/users.png)
+
+| User details                                       | Edit a user                                    |
+| -------------------------------------------------- | ---------------------------------------------- |
+| ![User details](docs/screenshots/user-details.png) | ![Edit a user](docs/screenshots/edit-user.png) |
+
+| Import from CSV                                        | Activity log                                   |
+| ------------------------------------------------------ | ---------------------------------------------- |
+| ![Import preview](docs/screenshots/import-preview.png) | ![Activity log](docs/screenshots/activity.png) |
 
 ## Run it
 
@@ -32,7 +50,7 @@ The app signs in to Veracode as its own API service account, not as you. An Admi
    You don't need HMAC credentials (an API ID and key); the app uses OAuth only. An Administrator can also create OAuth credentials for the account through the Identity API (`POST /api/authn/v2/oauth2/client_credentials`).
 
 5. In a terminal at the project folder (PowerShell, Terminal or the VS Code terminal; not Git Bash, which can't hide input), run `npm run connect`. The first time, it creates the vault and your **app user**: choose a username and a password of at least 12 characters. Then enter a name, the region (US, EU or US Federal), the client ID and the secret. Run it again to add, list or remove connections, or to add another app user with `npm run connect -- add-user`.
-6. Start the app with `npm run dev`, open http://localhost:5173 and sign in with your app username and password. The sign-in page is marked "Un-official": it is this app's own login, so never type your Veracode password there. Then open **Connections** and choose **Test** to check the connection against Veracode. _The Users and Import pages still show sample data until phase 5 of `docs/PLAN_API.md`._
+6. Start the app with `npm run dev`, open http://localhost:5173 and sign in with your app username and password. The sign-in page is marked "Un-official": it is this app's own login, so never type your Veracode password there. Then open **Connections** and choose **Test** to check the connection against Veracode.
 
 The secret is stored only in the encrypted vault, `.local/vault.json`, and never reaches the browser. The app gets short-lived tokens with it when needed and keeps them in memory. Any app user can open the vault, on any machine, with their own username and password. The vault is never committed: git ignores it and the pre-commit hook refuses it.
 
